@@ -1,21 +1,35 @@
+
 <div align="center">
 
 # 🌐 通用电商 AI 自动客服系统
 
-### 🚀 **一套代码，跑通所有电商平台 · 24小时无人值守 · AI自动售卖**
+### 🚀 一套代码跑通10+平台 · 24小时无人值守 · AI自动售卖
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?style=flat-square&logo=python&logoColor=white)]()
-[![License](https://img.shields.io/badge/License-MIT-22AA55?style=flat-square)]()
-[![DeepSeek](https://img.shields.io/badge/LLM-DeepSeek-4A90D9?style=flat-square)]()
-[![Platforms](https://img.shields.io/badge/Platforms-10%2B-FF6B6B?style=flat-square)]()
-[![Setup](https://img.shields.io/badge/Setup-One--Click-success?style=flat-square)]()
-
-### 💡 复制一次 · 部署所有平台 · 从此自动赚钱
+[![Download ZIP](https://img.shields.io/badge/⬇️_Download_ZIP-181717?style=for-the-badge&logo=github)](https://github.com/yelinyuan798-commits/UniversalECommerceBot/archive/refs/heads/main.zip)
+[![Quick Deploy](https://img.shields.io/badge/🚀_3分钟部署-22AA55?style=for-the-badge)](https://github.com/yelinyuan798-commits/UniversalECommerceBot#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B)
+[![View on GitHub](https://img.shields.io/badge/📖_查看文档-4A90D9?style=for-the-badge)](https://github.com/yelinyuan798-commits/UniversalECommerceBot)
+[![Star](https://img.shields.io/badge/⭐_Star-FF6B6B?style=for-the-badge)](https://github.com/yelinyuan798-commits/UniversalECommerceBot)
 
 </div>
 
 ---
 
+## ⬇️ 下载与部署
+
+```bash
+# 方式一：下载ZIP（推荐）
+# 点击上方 "Download ZIP" 按钮 → 解压 → 双击 setup.bat
+
+# 方式二：克隆
+git clone https://github.com/yelinyuan798-commits/UniversalECommerceBot.git
+cd UniversalECommerceBot
+
+# 一键部署
+双击 setup.bat    # ← 自动完成所有安装
+# 或命令行运行 setup.bat
+```
+
+---
 ## 🎯 这是什么神仙工具？
 
 **一个 AI，接管你所有店铺的客服。**
@@ -188,3 +202,4 @@ MIT License
 [![GitHub stars](https://img.shields.io/github/stars/yelinyuan798-commits/UniversalECommerceBot?style=social)](https://github.com/yelinyuan798-commits/UniversalECommerceBot)
 
 </div>
+
