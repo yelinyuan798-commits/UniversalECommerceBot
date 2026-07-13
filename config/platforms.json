@@ -5,24 +5,69 @@
       "name": "闲鱼",
       "description": "闲鱼二手交易平台",
       "class": "platforms.xianyu.bot.XianyuBot",
-      "config": {
-        "cookies_str": "",
-        "heartbeat_interval": 15,
-        "token_refresh_interval": 3600
-      }
+      "config": {}
     },
-    "taobao_template": {
+    "taobao": {
       "enabled": false,
-      "name": "淘宝",
-      "description": "淘宝/天猫平台 (开发中)",
+      "name": "淘宝/天猫",
+      "description": "淘宝/天猫电商平台",
       "class": "platforms.taobao.bot.TaobaoBot",
       "config": {}
     },
-    "pdd_template": {
+    "pinduoduo": {
       "enabled": false,
       "name": "拼多多",
-      "description": "拼多多平台 (开发中)",
+      "description": "拼多多社交电商平台",
       "class": "platforms.pdd.bot.PddBot",
+      "config": {}
+    },
+    "jingdong": {
+      "enabled": false,
+      "name": "京东",
+      "description": "京东电商平台",
+      "class": "platforms.jd.bot.JingdongBot",
+      "config": {}
+    },
+    "douyin": {
+      "enabled": false,
+      "name": "抖音电商",
+      "description": "抖音/字节跳动电商平台",
+      "class": "platforms.douyin.bot.DouyinBot",
+      "config": {}
+    },
+    "kuaishou": {
+      "enabled": false,
+      "name": "快手电商",
+      "description": "快手电商平台",
+      "class": "platforms.kuaishou.bot.KuaishouBot",
+      "config": {}
+    },
+    "xiaohongshu": {
+      "enabled": false,
+      "name": "小红书",
+      "description": "小红书电商平台",
+      "class": "platforms.xiaohongshu.bot.XiaohongshuBot",
+      "config": {}
+    },
+    "amazon": {
+      "enabled": false,
+      "name": "Amazon",
+      "description": "亚马逊全球电商平台",
+      "class": "platforms.amazon.bot.AmazonBot",
+      "config": {}
+    },
+    "shopify": {
+      "enabled": false,
+      "name": "Shopify",
+      "description": "Shopify独立站",
+      "class": "platforms.shopify.bot.ShopifyBot",
+      "config": {}
+    },
+    "weidian": {
+      "enabled": false,
+      "name": "微店",
+      "description": "微店/微信电商",
+      "class": "platforms.weidian.bot.WeidianBot",
       "config": {}
     }
   }
