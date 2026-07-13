@@ -1,0 +1,5 @@
+openai==1.65.5
+websockets==13.1
+loguru==0.7.3
+python-dotenv==1.0.1
+requests==2.32.3
