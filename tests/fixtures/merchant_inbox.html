@@ -1,0 +1,30 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>模拟商家会话（测试专用）</title>
+<body><main id="ready"><nav id="threads"></nav><section id="conversation"></section></main>
+<script>
+const threads = {
+  'chat-a': {user:'buyer-a',item:'product-a',messages:[{id:'history-a',direction:'inbound',text:'启动前消息',timestamp:Date.now()-60000}]},
+  'chat-b': {user:'buyer-b',item:'product-b',messages:[{id:'history-b',direction:'inbound',text:'启动前消息',timestamp:Date.now()-60000}]}
+};
+let active = 'chat-a'; window.sent=[];
+function render() {
+  const nav=document.querySelector('#threads'); nav.replaceChildren();
+  for (const id of Object.keys(threads)) {
+    const button=document.createElement('button'); button.className='thread'; button.dataset.conversationId=id;
+    button.textContent=id; button.onclick=()=>{active=id; render();}; nav.append(button);
+  }
+  const panel=document.querySelector('#conversation'), thread=threads[active];
+  panel.dataset.conversationId=active; panel.dataset.userId=thread.user; panel.dataset.itemId=thread.item;
+  panel.replaceChildren();
+  for (const m of thread.messages) {
+    const row=document.createElement('article'); row.className='message';row.dataset.messageId=m.id;row.dataset.direction=m.direction;row.dataset.status=m.status || '';row.dataset.timestamp=m.timestamp || '';
+    const text=document.createElement('span');text.className='text';text.textContent=m.text;row.append(text);panel.append(row);
+  }
+  const input=document.createElement('textarea');input.id='composer';panel.append(input);
+  const send=document.createElement('button');send.id='send';send.textContent='发送';
+  send.onclick=()=>{const text=input.value;if(!text)return;window.sent.push({conversation:active,user:thread.user,text});thread.messages.push({id:'out-'+window.sent.length,direction:'outbound',status:'sent',timestamp:Date.now(),text});render();};
+  panel.append(send);
+}
+window.addMessage=(conversation,id,text,direction='inbound')=>{threads[conversation].messages.push({id,text,direction,timestamp:Date.now()});if(active===conversation)render();};
+window.selectConversation=(id)=>{active=id;render();};
+render();
+</script></body></html>
