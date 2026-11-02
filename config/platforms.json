@@ -1,74 +1,210 @@
 {
   "platforms": {
     "xianyu": {
-      "enabled": true,
       "name": "闲鱼",
-      "description": "闲鱼二手交易平台",
+      "enabled": false,
       "class": "platforms.xianyu.bot.XianyuBot",
+      "shop_id": "my-xianyu-shop",
+      "dry_run": true,
       "config": {}
     },
     "taobao": {
+      "name": "淘宝 / 千牛",
       "enabled": false,
-      "name": "淘宝/天猫",
-      "description": "淘宝/天猫电商平台",
       "class": "platforms.taobao.bot.TaobaoBot",
-      "config": {}
-    },
-    "pinduoduo": {
-      "enabled": false,
-      "name": "拼多多",
-      "description": "拼多多社交电商平台",
-      "class": "platforms.pdd.bot.PddBot",
-      "config": {}
+      "shop_id": "my-taobao-shop",
+      "dry_run": true,
+      "config": {
+        "url": "https://myseller.taobao.com/",
+        "profile_dir": "data/browser/taobao",
+        "process_existing": false,
+        "selectors": {
+          "ready": "",
+          "conversation": "",
+          "messages": "",
+          "message_text": "",
+          "composer": "",
+          "send": ""
+        },
+        "attributes": {
+          "conversation_id": "data-conversation-id",
+          "user_id": "data-user-id",
+          "item_id": "data-item-id",
+          "message_id": "data-message-id",
+          "direction": "data-direction",
+          "delivery_status": "data-status",
+          "message_timestamp": "data-timestamp"
+        },
+        "sent_values": [
+          "sent",
+          "delivered"
+        ]
+      }
     },
     "jingdong": {
+      "name": "京东 / 咚咚",
       "enabled": false,
-      "name": "京东",
-      "description": "京东电商平台",
       "class": "platforms.jd.bot.JingdongBot",
-      "config": {}
+      "shop_id": "my-jd-shop",
+      "dry_run": true,
+      "config": {
+        "url": "https://dongdong.jd.com/",
+        "profile_dir": "data/browser/jingdong",
+        "process_existing": false,
+        "selectors": {
+          "ready": "",
+          "conversation": "",
+          "messages": "",
+          "message_text": "",
+          "composer": "",
+          "send": ""
+        },
+        "attributes": {
+          "conversation_id": "data-conversation-id",
+          "user_id": "data-user-id",
+          "item_id": "data-item-id",
+          "message_id": "data-message-id",
+          "direction": "data-direction",
+          "delivery_status": "data-status",
+          "message_timestamp": "data-timestamp"
+        },
+        "sent_values": [
+          "sent",
+          "delivered"
+        ]
+      }
+    },
+    "pinduoduo": {
+      "name": "拼多多",
+      "enabled": false,
+      "class": "platforms.pdd.bot.PddBot",
+      "shop_id": "my-pinduoduo-shop",
+      "dry_run": true,
+      "config": {
+        "url": "https://mms.pinduoduo.com/",
+        "profile_dir": "data/browser/pinduoduo",
+        "process_existing": false,
+        "selectors": {
+          "ready": "",
+          "conversation": "",
+          "messages": "",
+          "message_text": "",
+          "composer": "",
+          "send": ""
+        },
+        "attributes": {
+          "conversation_id": "data-conversation-id",
+          "user_id": "data-user-id",
+          "item_id": "data-item-id",
+          "message_id": "data-message-id",
+          "direction": "data-direction",
+          "delivery_status": "data-status",
+          "message_timestamp": "data-timestamp"
+        },
+        "sent_values": [
+          "sent",
+          "delivered"
+        ]
+      }
     },
     "douyin": {
+      "name": "抖音 / 抖店",
       "enabled": false,
-      "name": "抖音电商",
-      "description": "抖音/字节跳动电商平台",
       "class": "platforms.douyin.bot.DouyinBot",
-      "config": {}
+      "shop_id": "my-douyin-shop",
+      "dry_run": true,
+      "config": {
+        "url": "https://fxg.jinritemai.com/",
+        "profile_dir": "data/browser/douyin",
+        "process_existing": false,
+        "selectors": {
+          "ready": "",
+          "conversation": "",
+          "messages": "",
+          "message_text": "",
+          "composer": "",
+          "send": ""
+        },
+        "attributes": {
+          "conversation_id": "data-conversation-id",
+          "user_id": "data-user-id",
+          "item_id": "data-item-id",
+          "message_id": "data-message-id",
+          "direction": "data-direction",
+          "delivery_status": "data-status",
+          "message_timestamp": "data-timestamp"
+        },
+        "sent_values": [
+          "sent",
+          "delivered"
+        ]
+      }
     },
     "kuaishou": {
+      "name": "快手小店",
       "enabled": false,
-      "name": "快手电商",
-      "description": "快手电商平台",
       "class": "platforms.kuaishou.bot.KuaishouBot",
-      "config": {}
+      "shop_id": "my-kuaishou-shop",
+      "dry_run": true,
+      "config": {
+        "url": "https://login.kwaixiaodian.com/",
+        "profile_dir": "data/browser/kuaishou",
+        "process_existing": false,
+        "selectors": {
+          "ready": "",
+          "conversation": "",
+          "messages": "",
+          "message_text": "",
+          "composer": "",
+          "send": ""
+        },
+        "attributes": {
+          "conversation_id": "data-conversation-id",
+          "user_id": "data-user-id",
+          "item_id": "data-item-id",
+          "message_id": "data-message-id",
+          "direction": "data-direction",
+          "delivery_status": "data-status",
+          "message_timestamp": "data-timestamp"
+        },
+        "sent_values": [
+          "sent",
+          "delivered"
+        ]
+      }
     },
     "xiaohongshu": {
+      "name": "小红书 / 千帆",
       "enabled": false,
-      "name": "小红书",
-      "description": "小红书电商平台",
       "class": "platforms.xiaohongshu.bot.XiaohongshuBot",
-      "config": {}
-    },
-    "amazon": {
-      "enabled": false,
-      "name": "Amazon",
-      "description": "亚马逊全球电商平台",
-      "class": "platforms.amazon.bot.AmazonBot",
-      "config": {}
-    },
-    "shopify": {
-      "enabled": false,
-      "name": "Shopify",
-      "description": "Shopify独立站",
-      "class": "platforms.shopify.bot.ShopifyBot",
-      "config": {}
-    },
-    "weidian": {
-      "enabled": false,
-      "name": "微店",
-      "description": "微店/微信电商",
-      "class": "platforms.weidian.bot.WeidianBot",
-      "config": {}
+      "shop_id": "my-xiaohongshu-shop",
+      "dry_run": true,
+      "config": {
+        "url": "https://ark.xiaohongshu.com/",
+        "profile_dir": "data/browser/xiaohongshu",
+        "process_existing": false,
+        "selectors": {
+          "ready": "",
+          "conversation": "",
+          "messages": "",
+          "message_text": "",
+          "composer": "",
+          "send": ""
+        },
+        "attributes": {
+          "conversation_id": "data-conversation-id",
+          "user_id": "data-user-id",
+          "item_id": "data-item-id",
+          "message_id": "data-message-id",
+          "direction": "data-direction",
+          "delivery_status": "data-status",
+          "message_timestamp": "data-timestamp"
+        },
+        "sent_values": [
+          "sent",
+          "delivered"
+        ]
+      }
     }
   }
 }

@@ -9,28 +9,24 @@ from typing import Any, Dict, List
 def trans_cookies(cookies_str: str) -> Dict[str, str]:
     """解析cookie字符串为字典"""
     cookies = {}
-    for cookie in cookies_str.split("; "):
+    for cookie in cookies_str.split(";"):
         try:
             parts = cookie.split('=', 1)
             if len(parts) == 2:
-                cookies[parts[0]] = parts[1]
+                cookies[parts[0].strip()] = parts[1].strip()
         except:
             continue
     return cookies
 
 
 def generate_mid() -> str:
-    """生成mid"""
-    import random
-    random_part = int(1000 * random.random())
-    timestamp = int(time.time() * 1000)
-    return f"{random_part}{timestamp} 0"
+    """Numeric wire-compatible correlation ID with nanosecond resolution."""
+    return f"{time.time_ns()} 0"
 
 
 def generate_uuid() -> str:
-    """生成uuid"""
-    timestamp = int(time.time() * 1000)
-    return f"-{timestamp}1"
+    """Keep the protocol's negative numeric message-ID format."""
+    return f"-{time.time_ns()}"
 
 
 def generate_device_id(user_id: str) -> str:

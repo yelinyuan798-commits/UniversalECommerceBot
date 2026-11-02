@@ -1,40 +1,17 @@
 @echo off
 chcp 65001 >nul
-title Universal E-Commerce Bot - һ������
-
 cd /d "%~dp0"
-
-echo ========================================
-echo   ͨ�õ���AI�ͷ������� - һ������
-echo ========================================
-echo.
-
-echo [1/4] �������⻷��...
-python -m venv venv
-call venv\Scripts\activate.bat
-echo.
-
-echo [2/4] ��װ����...
-pip install -r requirements.txt -q
-echo.
-
-echo [3/4] ������ʾ���ļ�...
-if not exist "prompts\classify_prompt.txt" copy "prompts\classify_prompt_example.txt" "prompts\classify_prompt.txt" >nul 2>&1
-if not exist "prompts\price_prompt.txt" copy "prompts\price_prompt_example.txt" "prompts\price_prompt.txt" >nul 2>&1
-if not exist "prompts\tech_prompt.txt" copy "prompts\tech_prompt_example.txt" "prompts\tech_prompt.txt" >nul 2>&1
-if not exist "prompts\default_prompt.txt" copy "prompts\default_prompt_example.txt" "prompts\default_prompt.txt" >nul 2>&1
-echo.
-
-echo [4/4] ���������ļ�...
-if not exist "config\.env" copy "config\.env.example" "config\.env" >nul 2>&1
-if not exist "config\delivery_items.json" echo {"items":{}} > "config\delivery_items.json"
-echo.
-
-echo ========================================
-echo   �������!
-echo ========================================
-echo.
-echo   ���: ˫�� start.bat
-echo   ����: �༭ config\.env ���� API_KEY �� Cookie
-echo.
+python -m venv .venv
+if errorlevel 1 goto fail
+.venv\Scripts\python -m pip install -r requirements.txt
+if errorlevel 1 goto fail
+.venv\Scripts\python -m playwright install chromium
+if errorlevel 1 goto fail
+if not exist config\.env copy config\.env.example config\.env >nul
+echo 安装完成，请双击 start.bat。
 pause
+exit /b 0
+:fail
+echo 安装失败，请查看上面的错误。需要 Python 3.11 或更高版本。
+pause
+exit /b 1
