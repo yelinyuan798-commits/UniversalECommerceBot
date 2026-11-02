@@ -1,0 +1,20 @@
+{
+  "merchant_name": "示例文具店",
+  "tone": "友好简洁",
+  "custom_instructions": "只根据已配置的商品资料回答；未知事项交给店主确认。",
+  "handoff_keywords": ["人工", "投诉", "退款", "退货"],
+  "products": [
+    {
+      "id": "demo-notebook",
+      "name": "A5 线圈笔记本",
+      "description": "A5 尺寸，80 页，横线内页。此商品仅用于本地试聊。",
+      "price": 29.9,
+      "min_price": 25,
+      "stock": 100,
+      "shipping": "示例规则：付款后 48 小时内发货，具体以订单页面为准。",
+      "returns": "售后由店主核实订单后处理。",
+      "keywords": ["笔记本", "文具"],
+      "faq": [{"question": "有多少页", "answer": "这款笔记本有 80 页横线内页。"}]
+    }
+  ]
+}
