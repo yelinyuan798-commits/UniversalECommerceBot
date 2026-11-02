@@ -10,3 +10,12 @@ bot_output.log
 Thumbs.db
 .vscode/
 .idea/
+
+data/
+artifacts/
+.pytest_cache/
+config/merchant.json
+config/platforms.local.json
+config/*.private.json
+*.har
+*.zip

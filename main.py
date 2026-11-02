@@ -1,71 +1,74 @@
-#!/usr/bin/env python
-"""Universal E-Commerce Bot - 多平台 AI 自动客服系统"""
-import os, sys, json, asyncio, importlib
-from dotenv import load_dotenv
-from loguru import logger
-from core.agent import XianyuReplyBot
-from core.context import ChatContextManager
+#!/usr/bin/env python3
+"""Start the local console, run checks, or connect configured merchants."""
+import argparse
+import asyncio
+import json
+import os
+from pathlib import Path
 
-load_dotenv("config/.env")
-log_level = os.getenv("LOG_LEVEL", "INFO")
-logger.remove()
-logger.add(sys.stderr, level=log_level)
-logger.add("data/bot.log", rotation="10 MB", level="INFO")
+ROOT = Path(__file__).resolve().parent
 
-bot = XianyuReplyBot()
-context = ChatContextManager(db_path="data/chat.db")
 
-async def platform_message_handler(user_id, item_id, message, platform_name):
-    """统一消息处理器：所有平台的消息都经过这里"""
-    item_info = context.get_item_info(item_id)
-    item_desc = f"【{platform_name}】商品 {item_id}"
-    if item_info:
-        item_data = json.loads(item_info) if isinstance(item_info, str) else item_info
-        item_desc = f"当前商品信息: {json.dumps(item_data, ensure_ascii=False)}"
-    chat_ctx = context.get_context_by_chat(f"{platform_name}:{user_id}") or []
-    reply = bot.generate_reply(message, item_desc, context=chat_ctx)
-    if reply == "-":
-        return None
-    context.add_message_by_chat(f"{platform_name}:{user_id}", user_id, item_id, "user", message)
-    if reply:
-        context.add_message_by_chat(f"{platform_name}:{user_id}", "assistant", item_id, "assistant", reply)
-    return reply
+def doctor():
+    from core.runtime import PLATFORMS, read_platforms, validate_platforms
+    from core.profiles import ProfileStore
+    import importlib
+    checks = []
+    ProfileStore(ROOT / "config/merchant.example.json").load()
+    checks.append({"check": "示例商品配置", "ok": True})
+    checks.append({"check": "自定义商品配置", "ok": (ROOT / "config/merchant.json").exists(), "required_for_live": True})
+    data = validate_platforms(read_platforms(ROOT))
+    for key, cfg in data["platforms"].items():
+        module, name = PLATFORMS[key].rsplit(".", 1)
+        cls = getattr(importlib.import_module(module), name)
+        checks.append({"check": f"{key} 适配器可导入", "ok": True})
+        if cfg.get("enabled"):
+            adapter = cls(cfg)
+            errors = adapter.check_config() if hasattr(adapter, "check_config") else []
+            checks.append({"check": f"{key} 接入配置", "ok": not errors, "details": errors})
+    print(json.dumps({"checks": checks, "note": "检查配置不代表真实平台已联调成功"}, ensure_ascii=False, indent=2))
+    return 0 if all(c["ok"] for c in checks if not c.get("required_for_live")) else 1
 
-async def main():
-    logger.info("=" * 50)
-    logger.info("  通用电商 AI 客服系统 启动中...")
-    logger.info("=" * 50)
-    config_path = "config/platforms.json"
-    if not os.path.exists(config_path):
-        logger.error(f"配置文件不存在: {config_path}")
-        return
-    with open(config_path, encoding="utf-8") as f:
-        platforms_config = json.load(f)
-    tasks = []
-    for name, cfg in platforms_config.get("platforms", {}).items():
-        if not cfg.get("enabled"):
-            continue
-        try:
-            module_path, class_name = cfg["class"].rsplit(".", 1)
-            module = importlib.import_module(module_path)
-            platform_class = getattr(module, class_name)
-            platform = platform_class(cfg)
-            tasks.append(asyncio.create_task(platform.start(
-                lambda uid, iid, msg, pf=cfg["name"]: platform_message_handler(uid, iid, msg, pf)
-            )))
-            logger.info(f"  ✅ [{cfg['name']}] 已启动")
-        except Exception as e:
-            logger.error(f"  ❌ [{cfg.get('name', name)}] 启动失败: {e}")
-    if not tasks:
-        logger.warning("没有启用任何平台")
-        return
-    logger.info(f"\n共启动 {len(tasks)} 个平台，开始自动值守...\n")
-    await asyncio.gather(*tasks)
+
+async def run(live):
+    from core.runtime import RuntimeManager
+    manager = RuntimeManager(ROOT)
+    try:
+        print(json.dumps(await manager.start(live=live), ensure_ascii=False))
+        await asyncio.gather(*manager.tasks.values())
+        if manager.errors:
+            raise RuntimeError("平台连接中止，请检查本机登录及接入配置")
+    finally:
+        await manager.stop()
+
+
+def main():
+    os.chdir(ROOT)
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / "config/.env")
+    parser = argparse.ArgumentParser(description="通用电商客服：商品配置、试聊与店铺接入")
+    sub = parser.add_subparsers(dest="command")
+    console = sub.add_parser("console", help="打开本地工作台（默认）")
+    console.add_argument("--port", type=int, default=8765)
+    sub.add_parser("doctor", help="检查配置和依赖，不连接真实店铺")
+    runner = sub.add_parser("run", help="连接已启用的平台，默认只观察")
+    runner.add_argument("--live", action="store_true", help="允许向真实买家自动回复")
+    args = parser.parse_args()
+    if args.command == "doctor":
+        return doctor()
+    if args.command == "run":
+        asyncio.run(run(args.live))
+        return 0
+    import uvicorn
+    from web.server import create_app
+    port = getattr(args, "port", 8765)
+    print(f"商家工作台：http://127.0.0.1:{port}（Ctrl+C 停止）")
+    uvicorn.run(create_app(), host="127.0.0.1", port=port, access_log=False)
+    return 0
+
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        raise SystemExit(main())
     except KeyboardInterrupt:
-        logger.info("\n正在关闭所有平台...")
-    except Exception as e:
-        logger.error(f"系统异常: {e}")
+        pass
