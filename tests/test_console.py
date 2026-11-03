@@ -325,13 +325,13 @@ def test_ai_status_distinguishes_missing_configuration_and_explicit_disable(clie
 
 def test_default_console_explains_optional_ai_and_loads_updated_assets(client):
     html = client.get('/').text
-    assert 'default-service-ai-1' in html
+    assert 'ai-settings-1' in html
     assert 'id="default-ai-status"' in html
     assert '接上 AI 后表达更自然' in html
-    assert '如何开启 AI' in html
+    assert '打开 AI 设置' in html
     assert '#可选让默认客服说得更自然' in html
     assert '<input name="API_KEY"' not in html
-    script = client.get('/static/app.js?v=default-service-ai-1').text
+    script = client.get('/static/app.js?v=ai-settings-1').text
     assert '未配置 AI' in script
     assert 'AI 辅助已开启' in script
     assert 'AI 已关闭' in script
