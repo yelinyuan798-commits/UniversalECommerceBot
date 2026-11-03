@@ -1,12 +1,15 @@
 """Loopback-only merchant setup and conversation rehearsal UI."""
+import asyncio
 import json
-import os
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -16,6 +19,7 @@ from core.service import ServiceEngine
 from core.store import StateStore
 from core.platform_catalog import platform_metadata
 from core.default_skill import skill_metadata
+from core.ai_settings import AiSettingsStore, AISettingsError, test_connection
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -23,6 +27,9 @@ ROOT = Path(__file__).resolve().parents[1]
 def create_app(root=ROOT):
     root = Path(root)
     runtime = RuntimeManager(root)
+    ai_store = AiSettingsStore(root / "config/ai.local.json")
+    ai_save_lock = asyncio.Lock()
+    ai_test_lock = asyncio.Lock()
     profile_store = ProfileStore(root / "config/merchant.json")
     preview_store = StateStore(root / "data/preview.db")
 
@@ -70,6 +77,14 @@ def create_app(root=ROOT):
     async def invalid_value(request, exc):
         return JSONResponse({"detail": str(exc)}, 400)
 
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request, exc):
+        # FastAPI normally includes the invalid input in its response. An AI
+        # settings body may contain a credential, even when its shape is wrong.
+        if request.url.path.startswith("/api/ai-settings"):
+            return JSONResponse({"detail": "AI 配置格式无效，请检查填写内容后重试"}, 400)
+        return await request_validation_exception_handler(request, exc)
+
     @app.get("/")
     async def home():
         return FileResponse(ROOT / "web/static/index.html")
@@ -77,15 +92,41 @@ def create_app(root=ROOT):
     @app.get("/api/state")
     async def state():
         current_profile = profile()
-        ai_enabled = os.getenv("LLM_ENABLED", "true").strip().lower() not in {"false", "0", "no"}
-        ai_configured = ai_enabled and bool(os.getenv("API_KEY", "").strip())
+        try:
+            ai_status = ai_store.public_state()["status"]
+        except AISettingsError:
+            ai_status = "unconfigured"
         # Configuration state only, not a claim that an external API is healthy.
-        ai_status = "disabled" if not ai_enabled else "enabled" if ai_configured else "unconfigured"
+        ai_configured = ai_status == "enabled"
         return {**runtime.state(), "profile_saved": (root / "config/merchant.json").exists(),
                 "ai_configured": ai_configured, "ai_status": ai_status,
                 "profile": current_profile,
                 "reply_mode": current_profile["reply_mode"], "default_skill": skill_metadata(),
                 "connections": read_platforms(root), "catalog": platform_metadata()}
+
+    @app.get("/api/ai-settings")
+    async def get_ai_settings():
+        return ai_store.public_state()
+
+    @app.put("/api/ai-settings")
+    async def save_ai_settings(data: dict):
+        async with ai_save_lock:
+            saved = ai_store.save(data)
+        return {"saved": True, **saved}
+
+    @app.post("/api/ai-settings/test")
+    async def probe_ai_settings(data: dict):
+        if ai_test_lock.locked():
+            raise HTTPException(429, "正在测试连接，请稍后再试")
+        async with ai_test_lock:
+            candidate = ai_store.prepare(data)
+            started = time.monotonic()
+            result = await test_connection(candidate)
+            response = {"ok": result["ok"], "message": result["message"],
+                        "latency_ms": round((time.monotonic() - started) * 1000)}
+            if not result["ok"]:
+                response["error_code"] = result["code"]
+            return response
 
     @app.get("/api/profile/example")
     async def example_profile():
@@ -137,7 +178,7 @@ def create_app(root=ROOT):
             raise ValueError("请输入 1 至 4000 字的试聊消息")
         session = str(data.get("session_id", "preview"))[:100]
         current_profile = profile()
-        engine = ServiceEngine(current_profile, preview_store)
+        engine = ServiceEngine(current_profile, preview_store, settings_provider=ai_store.load)
         result = await engine.reply({"platform": str(data.get("platform", "xianyu")),
             "shop_id": "local-preview", "user_id": "test-buyer", "conversation_id": session,
             "message_id": str(uuid.uuid4()), "item_id": str(data.get("item_id", "")), "text": text})
