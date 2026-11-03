@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from core.profiles import ProfileStore, default_profile
+from core.ai_settings import AiSettingsStore
 from core.service import ServiceEngine
 from core.store import StateStore
 from core.platform_catalog import PLATFORMS
@@ -47,6 +48,7 @@ def validate_platforms(data: dict) -> dict:
 class RuntimeManager:
     def __init__(self, root):
         self.root = Path(root)
+        self.ai_settings_store = AiSettingsStore(self.root / "config/ai.local.json")
         self.tasks = {}
         self.adapters = {}
         self.errors = {}
@@ -89,7 +91,8 @@ class RuntimeManager:
             # Preview and live event ledgers are deliberately separate.
             if self.engine:
                 self.engine.store.close()
-            self.engine = ServiceEngine(profile, StateStore(self.root / "data" / ("live.db" if live else "observe.db")))
+            self.engine = ServiceEngine(profile, StateStore(self.root / "data" / ("live.db" if live else "observe.db")),
+                                        settings_provider=self.ai_settings_store.load)
             self.adapters, self.errors, self.tasks = adapters, {}, {}
             self.mode = "live" if live else "observe"
             for key, adapter in adapters.items():

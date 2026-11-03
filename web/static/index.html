@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>商家客服工作台</title><link rel="stylesheet" href="/static/style.css?v=default-service-ai-1"><script defer src="/static/app.js?v=default-service-ai-1"></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>商家客服工作台</title><link rel="stylesheet" href="/static/style.css?v=ai-settings-1"><script defer src="/static/app.js?v=ai-settings-1"></script></head>
 <body><header><a class="brand" href="/">店小助 <span>商家客服工作台</span></a><div id="status" class="status">正在读取状态</div></header>
 <main><div class="intro"><div><p class="eyebrow">UNIVERSAL ECOMMERCE BOT</p><h1>不用从零写话术，<br>先用默认客服。</h1><p>默认客服打开就能用，接上 AI 后表达更自然。商品介绍、报价和还价，可以按商品定制。</p></div><div class="runtime"><strong id="runtime-label">机器人未启动</strong><p id="runtime-description">本地试聊可直接使用，无需登录商家账号。</p><div class="actions"><button id="observe" class="secondary">开始观察</button><button id="live">开启自动回复</button><button id="stop" class="secondary">停止</button></div></div></div>
 <div id="notice" role="status" aria-live="polite"></div>
-<nav aria-label="工作台导航"><button class="tab active" data-tab="products">商品与规则</button><button class="tab" data-tab="connections">平台接入</button><button class="tab" data-tab="activity">消息与人工接管</button></nav>
+<nav aria-label="工作台导航"><button class="tab active" data-tab="products">商品与规则</button><button class="tab" data-tab="connections">平台接入</button><button class="tab" data-tab="ai-settings">AI 设置</button><button class="tab" data-tab="activity">消息与人工接管</button></nav>
 <section id="products" class="tab-panel"><div class="workspace"><article>
 <div class="section-heading"><h2>选一种用法</h2><p>先用默认客服接待，也可以按商品定制。</p></div>
 <div class="reply-modes" role="group" aria-label="客服回复方式">
@@ -15,7 +15,7 @@
 <h3 id="default-heading">默认客服，直接开聊</h3>
 <p id="default-description">没配置 AI 也能接待常见咨询。接上 AI 后，回复会更自然；调用失败时继续使用内置话术。</p>
 <p id="default-ai-status" class="mode-note" role="status">正在读取 AI 设置。</p>
-<p><a class="text-button" href="https://github.com/yelinyuan798-commits/UniversalECommerceBot/blob/main/docs/PLATFORM_SETUP.md#可选让默认客服说得更自然" target="_blank" rel="noopener noreferrer">如何开启 AI</a></p>
+<p><button id="default-ai-settings" class="text-button">打开 AI 设置</button></p>
 <ul><li>打招呼，询问买家想了解什么。</li><li>询价、库存、发货：引导查看商品或订单页面。</li><li>退款、投诉和需要确认的细节：记入人工待办，暂停这段聊天。</li></ul>
 <p class="mode-note">默认客服不会读取商品页面，也不会替你承诺价格、库存或发货日期。需要具体回答时，可以切换到“按商品定制”。连接真实店铺仍要完成登录和平台设置。</p>
 <button id="default-connect" class="secondary">去连接店铺</button>
@@ -24,5 +24,25 @@
 <details><summary>多商品 / 精细编辑</summary><p>多个平台的商品可分别使用对应商品 ID。保存后，按当前咨询的商品匹配资料。</p><label class="sr-only" for="profile-json">完整商品配置</label><textarea id="profile-json" class="code" rows="18" spellcheck="false"></textarea><button id="save-json" class="secondary">保存完整配置</button></details></div></article>
 <aside class="preview"><div class="section-heading"><h2>先试着聊一聊</h2><p id="preview-note">试聊消息不会发给真实买家。</p></div><label id="preview-product-label">咨询商品<select id="preview-product"></select></label><label>模拟平台<select id="preview-platform"><option value="xianyu">闲鱼</option><option value="taobao">淘宝</option><option value="jingdong">京东</option></select></label><div id="chat" class="chat" aria-live="polite"><div class="bubble assistant">可以问价格、发货时间，或者试试“转人工”。</div></div><div class="chips"><button data-prompt="在吗？">打招呼</button><button data-prompt="多少钱？">问价格</button><button data-prompt="可以便宜点吗？">试议价</button><button data-prompt="什么时候发货？">问发货</button><button data-prompt="我要退款">试转人工</button></div><form id="chat-form"><label class="sr-only" for="chat-input">模拟买家消息</label><div class="send-row"><input id="chat-input" placeholder="输入模拟买家消息" maxlength="4000" required><button>发送</button></div></form><button id="new-session" class="text-button">重新开始一个会话</button></aside></div></section>
 <section id="connections" class="tab-panel" hidden><div class="section-heading"><h2>连接你的商家工作台</h2><p>已提供 7 个平台入口。闲鱼、淘宝、京东由作者确认实店收发已跑通；新平台完成本地验证后，还需按商家页面配置并实测。</p></div><div id="platform-list"></div><div class="connection-help"><strong>首次接入</strong><ol><li>默认客服不用填商品资料。选择“按商品定制”时，先保存商品资料，并确保商品 ID 与平台一致。</li><li>在下面的配置中启用目标平台。闲鱼凭据保存在本机 config/.env。</li><li>网页接入平台需填写真实聊天页的元素选择器与标识属性；公共模板留空，保存过的本机配置会保留。</li><li>先点“开始观察”检查新消息和回复，再点“停止”。将目标平台 dry_run 改为 false，保存接入配置后，再点“开启自动回复”。登录、验证操作在弹出的独立浏览器完成。</li></ol><p>此版本不控制手机原生 App。模拟测试通过不代表你的店铺已经通过真实收发验收。</p></div><label for="connections-json">平台接入配置</label><textarea id="connections-json" class="code" rows="24" spellcheck="false"></textarea><button id="save-connections">保存接入配置</button></section>
+<section id="ai-settings" class="tab-panel" hidden>
+<article class="ai-settings-card" aria-labelledby="ai-settings-heading">
+<div class="section-heading"><h2 id="ai-settings-heading">让客服说得更自然</h2><p>不接 AI 也能用。填好模型服务商提供的信息，就能让常见回复更自然；AI 暂时不可用时，继续使用内置话术。</p></div>
+<p id="ai-saved-status" class="mode-note" role="status">正在读取已保存的设置。</p>
+<form id="ai-settings-form" autocomplete="off">
+<fieldset id="ai-settings-fields" disabled>
+<label class="check-row"><input id="ai-enabled" name="enabled" type="checkbox"><span>使用 AI 辅助回复<small>关闭后使用内置话术，已保存的密钥仍会保留。</small></span></label>
+<label for="ai-base-url">接口地址<input id="ai-base-url" name="base_url" type="url" required spellcheck="false" autocomplete="off" aria-describedby="ai-address-help"><small id="ai-address-help" class="field-help">填写服务商提供的兼容 OpenAI 的接口地址，通常以 /v1 结尾。</small></label>
+<div class="fields"><label for="ai-model">模型名称<input id="ai-model" name="model" required spellcheck="false" autocomplete="off"></label><label for="ai-timeout">最多等待多久（秒）<input id="ai-timeout" name="timeout_seconds" type="number" min="1" max="60" step="1" required><small class="field-help">超时后改用内置话术，可填 1–60 秒。</small></label></div>
+<label for="ai-api-key">API 密钥<input id="ai-api-key" name="api_key" type="password" autocomplete="new-password" spellcheck="false" aria-describedby="ai-key-status" placeholder="粘贴服务商提供的密钥"><small id="ai-key-status" class="field-help">密钥只保存在本机，不会在页面回显。</small></label>
+<label id="ai-clear-key-row" class="check-row clear-key" hidden><input id="ai-clear-key" name="clear_api_key" type="checkbox"><span><span id="ai-clear-key-label">删除已保存的密钥，并关闭 AI</span><small>勾选后点“保存设置”才会删除。</small></span></label>
+<div class="actions"><button id="ai-test" type="button" class="secondary">测试连接</button><button id="ai-save" type="submit">保存设置</button></div>
+</fieldset>
+<p class="ai-test-help">测试只发送一条测试消息，不发送买家资料；服务商可能计费。测试不会保存设置，也不会开启 AI。</p>
+<p id="ai-feedback" class="ai-feedback" role="status" aria-live="polite"></p>
+</form>
+<button id="ai-load-retry" class="secondary" hidden>重新读取设置</button>
+<div class="ai-settings-notes"><p>保存后，后续请求使用新设置，无需重启。填错或服务暂时不可用，都可以关闭 AI，继续用内置话术。</p><p>开启后，相关买家消息会发给你选择的模型服务。退款、投诉等需要人工处理的消息，仍按转人工规则处理。</p><a class="text-button" href="https://github.com/yelinyuan798-commits/UniversalECommerceBot/blob/main/docs/PLATFORM_SETUP.md#可选让默认客服说得更自然" target="_blank" rel="noopener noreferrer">查看设置说明</a></div>
+</article>
+</section>
 <section id="activity" class="tab-panel" hidden><div class="section-heading"><h2>消息与接管</h2><p>生成回复和发送成功分别记录。接管后，该会话暂停自动回答。</p><button id="refresh-events" class="secondary">刷新记录</button></div><div id="handoffs"></div><div class="table-wrap"><table><thead><tr><th>平台 / 会话</th><th>买家消息</th><th>回复</th><th>状态</th></tr></thead><tbody id="events"></tbody></table></div></section>
 <footer>未配置 AI 也能使用 · 接入 AI 后，相关买家消息会发给你选择的模型服务</footer></main></body></html>

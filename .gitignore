@@ -16,6 +16,8 @@ artifacts/
 .pytest_cache/
 config/merchant.json
 config/platforms.local.json
+config/ai.local.json
+config/.ai-settings-*
 config/*.private.json
 *.har
 *.zip
