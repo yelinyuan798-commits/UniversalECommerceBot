@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from core.profiles import build_profile, ProfileError, ProfileStore, validate_profile
+from core.profiles import build_profile, default_profile, ProfileError, ProfileStore, validate_profile
 
 
 class ProfilesTests(unittest.TestCase):
@@ -124,6 +124,45 @@ class ProfilesTests(unittest.TestCase):
     def test_boolean_strings_rejected_to_prevent_false_becoming_true(self):
         with self.assertRaises(ProfileError):
             build_profile({"product_name": "杯子", "bargain_enabled": "false"})
+
+    def test_default_profile_has_no_example_product_facts_and_is_independent(self):
+        first = default_profile()
+        self.assertEqual(first["reply_mode"], "default")
+        self.assertEqual(first["products"], [])
+        self.assertEqual(first["merchant_name"], "我的店铺")
+        self.assertNotIn("demo-notebook", json.dumps(first))
+        self.assertNotIn("示例", json.dumps(first, ensure_ascii=False))
+        first["products"].append({"id": "mutated"})
+        first["handoff_keywords"].clear()
+        self.assertEqual(default_profile()["products"], [])
+        self.assertTrue(default_profile()["handoff_keywords"])
+
+    def test_legacy_profile_without_reply_mode_remains_custom(self):
+        legacy = {"merchant_name": "已有店铺", "products": [{"id": "123", "name": "杯子", "price": 99}]}
+        self.assertEqual(validate_profile(legacy)["reply_mode"], "custom")
+        self.assertEqual(build_profile(legacy)["reply_mode"], "custom")
+        self.assertNotIn("reply_mode", legacy)
+
+    def test_reply_mode_validation_rejects_typos_and_non_strings(self):
+        for mode in ("", "automatic", "DEFAULT", False, None, [], {}):
+            with self.subTest(mode=mode), self.assertRaises(ProfileError):
+                validate_profile({"reply_mode": mode})
+        for mode in ("default", "custom"):
+            with self.subTest(mode=mode):
+                self.assertEqual(build_profile({"reply_mode": mode})["reply_mode"], mode)
+
+    def test_reply_mode_roundtrip_preserves_retained_custom_products(self):
+        original = build_profile({"reply_mode": "default", "product_name": "保留的杯子", "price": 99})
+        with tempfile.TemporaryDirectory() as directory:
+            store = ProfileStore(Path(directory) / "merchant.json")
+            store.save(original)
+            loaded = store.load()
+            self.assertEqual(loaded["reply_mode"], "default")
+            self.assertEqual(loaded["products"], original["products"])
+            loaded["reply_mode"] = "custom"
+            store.save(loaded)
+            self.assertEqual(store.load()["products"], original["products"])
+            self.assertEqual(store.load()["reply_mode"], "custom")
 
     def test_empty_profile_has_no_fictional_products(self):
         self.assertEqual(build_profile({})["products"], [])

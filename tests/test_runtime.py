@@ -1,6 +1,8 @@
 """Lifecycle and per-platform send-mode checks without merchant network access."""
 import asyncio
 import json
+import io
+from contextlib import redirect_stdout
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -24,6 +26,8 @@ class StubAdapter:
         self.started = asyncio.Event()
         self.cancelled = False
         self.disconnected = False
+        self.handled = asyncio.Event()
+        self.result = None
 
     def check_config(self):
         return self.options.get('errors', [])
@@ -37,6 +41,11 @@ class StubAdapter:
             return
         if self.options.get('failure') == 'exception':
             raise ConnectionError('private transport diagnostics must not reach the console')
+        if self.options.get('event'):
+            self.result = await handler(self.options['event'])
+            if self.result.get('reply') and self.on_delivery:
+                await self.on_delivery(self.result['event_key'], 'preview' if self.dry_run else 'sent')
+            self.handled.set()
         try:
             await asyncio.Event().wait()
         except asyncio.CancelledError:
@@ -104,10 +113,39 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.manager.running)
         self.assertEqual(self.manager.tasks, {})
 
-    async def test_missing_merchant_profile_blocks_connection(self):
-        self.write_config(xianyu={})
+    async def test_new_installation_connects_with_default_service_without_sample_products(self):
+        event = {'platform': 'xianyu', 'shop_id': 'test-xianyu', 'conversation_id': 'buyer-chat',
+                 'user_id': 'buyer', 'message_id': 'new-question', 'text': '多少钱？'}
+        self.write_config(xianyu={'dry_run': False, 'config': {'event': event}})
         (self.root / 'config/merchant.json').unlink()
-        with self.assertRaisesRegex(ValueError, '保存自己的商品配置'):
+        # No example file exists in this installation either.
+        await self.manager.start(live=True)
+        await self.wait_started()
+        adapter = self.manager.adapters['xianyu']
+        await asyncio.wait_for(adapter.handled.wait(), 2)
+        self.assertEqual(self.manager.engine.profile['reply_mode'], 'default')
+        self.assertEqual(self.manager.engine.profile['products'], [])
+        self.assertTrue(adapter.result['reply'])
+        self.assertNotIn('29.9', adapter.result['reply'])
+        self.assertNotIn('笔记本', adapter.result['reply'])
+        self.assertEqual(self.manager.engine.store.get_event(adapter.result['event_key'])['status'], 'sent')
+        self.assertFalse((self.root / 'config/merchant.json').exists())
+
+    async def test_existing_profile_without_mode_stays_custom_on_start(self):
+        path = self.root / 'config/merchant.json'
+        legacy = {'merchant_name': '原来的店', 'products': [{'id': 'p1', 'name': '样品', 'price': 88}]}
+        path.write_text(json.dumps(legacy), encoding='utf-8')
+        self.write_config(xianyu={})
+        await self.manager.start()
+        await self.wait_started()
+        self.assertEqual(self.manager.engine.profile['reply_mode'], 'custom')
+        self.assertEqual(self.manager.engine.profile['products'][0]['price'], 88)
+        self.assertEqual(json.loads(path.read_text()), legacy)
+
+    async def test_default_mode_keeps_platform_configuration_checks(self):
+        (self.root / 'config/merchant.json').unlink()
+        self.write_config(xianyu={'config': {'errors': ['缺少有效登录资料']}})
+        with self.assertRaisesRegex(ValueError, '登录资料'):
             await self.manager.start()
         self.assertEqual(self.manager.tasks, {})
 
@@ -168,6 +206,43 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(a.cancelled and a.disconnected for a in self.manager.adapters.values()))
         self.assertTrue(all(a.status == 'stopped' for a in self.manager.adapters.values()))
         await self.manager.stop()
+
+
+class DoctorDefaultModeTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / 'config').mkdir()
+
+    def config(self, enabled=False):
+        (self.root / 'config/platforms.json').write_text(json.dumps({'platforms': {
+            'taobao': {'shop_id': 'test-store', 'enabled': enabled, 'dry_run': True,
+                       'config': {'journal_path': str(self.root / 'delivery.db')}}
+        }}), encoding='utf-8')
+
+    def test_doctor_accepts_builtin_default_without_merchant_or_example_files(self):
+        from main import doctor
+        self.config()
+        out = io.StringIO()
+        with patch('main.ROOT', self.root), redirect_stdout(out):
+            code = doctor()
+        report = json.loads(out.getvalue())
+        self.assertEqual(code, 0)
+        self.assertTrue(all(check['ok'] for check in report['checks']))
+        self.assertEqual(report['checks'][0]['reply_mode'], 'default')
+        self.assertTrue(report['checks'][0]['using_builtin_default'])
+        self.assertNotIn('required_for_live', out.getvalue())
+
+    def test_doctor_still_fails_for_enabled_platform_with_missing_selectors(self):
+        from main import doctor
+        self.config(enabled=True)
+        out = io.StringIO()
+        with patch('main.ROOT', self.root), redirect_stdout(out):
+            code = doctor()
+        self.assertEqual(code, 1)
+        checks = json.loads(out.getvalue())['checks']
+        self.assertTrue(any(not check['ok'] and '接入配置' in check['check'] for check in checks))
 
 
 class PlatformConfigurationMigrationTests(unittest.TestCase):
