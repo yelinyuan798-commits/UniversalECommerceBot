@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-import math
-import os
 import re
 import unicodedata
 
 from core.default_skill import SkillReply
+from core.ai_settings import AISettings, AISettingsError, environment_settings, model_client
 
 
 @dataclass(frozen=True)
@@ -88,8 +87,11 @@ _PAGE = re.compile(r"商品页|详情页|下单页|订单页|结算页|页面|pr
 _GUIDANCE = re.compile(r"查看|看看|看一下|看下|先看|可以看|请看|可看|看一看|浏览|留意|参考|显示|展示|为准|说明|check|refer", re.IGNORECASE)
 
 
-def ai_enabled() -> bool:
-    return bool(os.getenv("API_KEY", "").strip()) and os.getenv("LLM_ENABLED", "true").strip().lower() not in {"false", "0", "no"}
+def ai_enabled(settings: AISettings | None = None) -> bool:
+    try:
+        return (settings if settings is not None else environment_settings()).usable
+    except AISettingsError:
+        return False
 
 
 def is_safe_reply(candidate: object, intent: str, *, buyer_text: str = "") -> bool:
@@ -130,31 +132,25 @@ def is_safe_reply(candidate: object, intent: str, *, buyer_text: str = "") -> bo
     return bool(re.search(r"不客气|不用谢|别客气|客气|感谢|谢谢|随时|留言|欢迎|问题|需要|welcome|thanks", text, re.IGNORECASE))
 
 
-async def natural_reply(text: str, decision: SkillReply) -> GeneratedReply:
+async def natural_reply(text: str, decision: SkillReply, *, settings: AISettings | None = None) -> GeneratedReply:
     """Generate actual natural language, or return the exact built-in answer."""
     fallback = GeneratedReply(decision.reply, "builtin")
-    if decision.action != "reply" or decision.intent not in _ALLOWED_INTENTS or not ai_enabled():
+    if decision.action != "reply" or decision.intent not in _ALLOWED_INTENTS:
         return fallback
     try:
-        from openai import AsyncOpenAI
-        timeout = float(os.getenv("LLM_TIMEOUT_SECONDS", "12"))
-        if not math.isfinite(timeout):
+        snapshot = settings if settings is not None else environment_settings()
+        if not snapshot.usable:
             return fallback
-        timeout = max(1.0, min(timeout, 60.0))
         messages = [
             {"role": "system", "content": _SYSTEM_POLICY},
             {"role": "system", "content": f"本次意图：{decision.intent}\n通用答复：{decision.reply}"},
             {"role": "user", "content": text},
         ]
-        async with AsyncOpenAI(
-            api_key=os.getenv("API_KEY", "").strip(),
-            base_url=os.getenv("MODEL_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-            timeout=timeout, max_retries=0,
-        ) as client:
+        async with model_client(snapshot) as client:
             response = await asyncio.wait_for(client.chat.completions.create(
-                model=os.getenv("MODEL_NAME", "qwen-plus"), messages=messages,
+                model=snapshot.model, messages=messages,
                 temperature=0.4, max_tokens=300,
-            ), timeout=timeout + 1)
+            ), timeout=snapshot.timeout_seconds + 1)
             candidate = response.choices[0].message.content
         if is_safe_reply(candidate, decision.intent, buyer_text=text):
             return GeneratedReply(candidate.strip(), "ai")
