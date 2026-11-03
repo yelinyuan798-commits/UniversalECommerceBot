@@ -4,7 +4,7 @@ import importlib
 import json
 from pathlib import Path
 
-from core.profiles import ProfileStore
+from core.profiles import ProfileStore, default_profile
 from core.service import ServiceEngine
 from core.store import StateStore
 from core.platform_catalog import PLATFORMS
@@ -17,6 +17,12 @@ def read_platforms(root: Path) -> dict:
         validate_platforms(overrides)
         defaults["platforms"].update(overrides["platforms"])
     return defaults
+
+
+def read_profile(root: Path) -> dict:
+    """New installations use the built-in general service, never sample products."""
+    path = root / "config/merchant.json"
+    return ProfileStore(path).load() if path.exists() else default_profile()
 
 
 def validate_platforms(data: dict) -> dict:
@@ -63,10 +69,7 @@ class RuntimeManager:
         async with self.lock:
             if self.running:
                 raise ValueError("机器人正在运行，请先停止")
-            profile_path = self.root / "config/merchant.json"
-            if not profile_path.exists():
-                raise ValueError("请先保存自己的商品配置，再连接店铺")
-            profile = ProfileStore(profile_path).load()
+            profile = read_profile(self.root)
             configs = validate_platforms(read_platforms(self.root))["platforms"]
             enabled = {k: dict(v) for k, v in configs.items() if v.get("enabled")}
             if not enabled:

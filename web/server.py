@@ -11,10 +11,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from core.profiles import ProfileStore, build_profile
-from core.runtime import RuntimeManager, read_platforms, validate_platforms
+from core.runtime import RuntimeManager, read_platforms, read_profile, validate_platforms
 from core.service import ServiceEngine
 from core.store import StateStore
 from core.platform_catalog import platform_metadata
+from core.default_skill import skill_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,37 +27,41 @@ def create_app(root=ROOT):
     preview_store = StateStore(root / "data/preview.db")
 
     def profile():
-        if (root / "config/merchant.json").exists():
-            return profile_store.load()
-        return ProfileStore(root / "config/merchant.example.json").load()
+        return read_profile(root)
 
     @asynccontextmanager
     async def lifespan(app):
-        yield
-        await runtime.stop()
-        preview_store.close()
+        try:
+            yield
+        finally:
+            await runtime.stop()
+            if runtime.engine:
+                runtime.engine.store.close()
+            preview_store.close()
 
     app = FastAPI(title="商家客服工作台", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.runtime = runtime
 
     @app.middleware("http")
     async def local_access(request: Request, call_next):
+        cache_headers = {"Cache-Control": "no-store" if request.url.path.startswith("/api/") else "no-cache"}
         host = request.url.hostname
         if host not in {"127.0.0.1", "localhost", "::1", "testserver"}:
-            return JSONResponse({"detail": "仅允许本机访问"}, 403)
+            return JSONResponse({"detail": "仅允许本机访问"}, 403, headers=cache_headers)
         origin = request.headers.get("origin")
         if origin and origin != f"{request.url.scheme}://{request.headers.get('host')}":
-            return JSONResponse({"detail": "不允许跨站操作"}, 403)
+            return JSONResponse({"detail": "不允许跨站操作"}, 403, headers=cache_headers)
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             if request.headers.get("x-requested-with") != "merchant-console":
-                return JSONResponse({"detail": "请从本地工作台提交"}, 403)
+                return JSONResponse({"detail": "请从本地工作台提交"}, 403, headers=cache_headers)
             try:
                 content_length = int(request.headers.get("content-length", 0))
             except ValueError:
-                return JSONResponse({"detail": "无效的请求长度"}, 400)
+                return JSONResponse({"detail": "无效的请求长度"}, 400, headers=cache_headers)
             if content_length > 262144 or len(await request.body()) > 262144:
-                return JSONResponse({"detail": "配置过大，请限制在 256 KB 内"}, 413)
+                return JSONResponse({"detail": "配置过大，请限制在 256 KB 内"}, 413, headers=cache_headers)
         response = await call_next(request)
+        response.headers["Cache-Control"] = cache_headers["Cache-Control"]
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'"
         return response
@@ -71,9 +76,31 @@ def create_app(root=ROOT):
 
     @app.get("/api/state")
     async def state():
+        current_profile = profile()
         return {**runtime.state(), "profile_saved": (root / "config/merchant.json").exists(),
-                "ai_configured": bool(os.getenv("API_KEY")), "profile": profile(),
+                "ai_configured": bool(os.getenv("API_KEY", "").strip())
+                    and os.getenv("LLM_ENABLED", "true").lower() not in {"false", "0", "no"},
+                "profile": current_profile,
+                "reply_mode": current_profile["reply_mode"], "default_skill": skill_metadata(),
                 "connections": read_platforms(root), "catalog": platform_metadata()}
+
+    @app.get("/api/profile/example")
+    async def example_profile():
+        # Explicit rehearsal material only; reading it must not activate it.
+        return ProfileStore(ROOT / "config/merchant.example.json").load()
+
+    @app.put("/api/reply-mode")
+    async def set_reply_mode(data: dict):
+        mode = data.get("mode")
+        if not isinstance(mode, str) or mode not in {"default", "custom"}:
+            raise ValueError("客服模式请选择 default 或 custom")
+        async with runtime.lock:
+            if runtime.running:
+                raise ValueError("请先停止机器人再切换客服模式")
+            current_profile = profile()
+            current_profile["reply_mode"] = mode
+            saved = profile_store.save(current_profile)
+        return {"saved": True, "reply_mode": mode, "profile": saved}
 
     @app.post("/api/profile/generate")
     async def generate(data: dict):
@@ -81,21 +108,23 @@ def create_app(root=ROOT):
 
     @app.put("/api/profile")
     async def save_profile(data: dict):
-        if runtime.running:
-            raise ValueError("请先停止机器人再修改商品规则")
-        profile_store.save(data)
-        return {"saved": True, "profile": profile_store.load()}
+        async with runtime.lock:
+            if runtime.running:
+                raise ValueError("请先停止机器人再修改商品规则")
+            saved = profile_store.save(data)
+        return {"saved": True, "profile": saved}
 
     @app.put("/api/connections")
     async def connections(data: dict):
-        if runtime.running:
-            raise ValueError("请先停止机器人再修改接入配置")
-        data = validate_platforms(data)
-        target = root / "config/platforms.local.json"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        temp = target.with_suffix(".tmp")
-        temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        temp.replace(target)
+        async with runtime.lock:
+            if runtime.running:
+                raise ValueError("请先停止机器人再修改接入配置")
+            data = validate_platforms(data)
+            target = root / "config/platforms.local.json"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temp = target.with_suffix(".tmp")
+            temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            temp.replace(target)
         return {"saved": True}
 
     @app.post("/api/preview")
@@ -104,13 +133,15 @@ def create_app(root=ROOT):
         if not isinstance(text, str) or not text.strip() or len(text) > 4000:
             raise ValueError("请输入 1 至 4000 字的试聊消息")
         session = str(data.get("session_id", "preview"))[:100]
-        engine = ServiceEngine(profile(), preview_store)
+        current_profile = profile()
+        engine = ServiceEngine(current_profile, preview_store)
         result = await engine.reply({"platform": str(data.get("platform", "xianyu")),
             "shop_id": "local-preview", "user_id": "test-buyer", "conversation_id": session,
             "message_id": str(uuid.uuid4()), "item_id": str(data.get("item_id", "")), "text": text})
         if result.get("reply"):
             engine.mark_sent(result["event_key"])
         result["simulated"] = True
+        result["reply_mode"] = current_profile["reply_mode"]
         return result
 
     @app.post("/api/start")

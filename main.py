@@ -10,13 +10,12 @@ ROOT = Path(__file__).resolve().parent
 
 
 def doctor():
-    from core.runtime import PLATFORMS, read_platforms, validate_platforms
-    from core.profiles import ProfileStore
+    from core.runtime import PLATFORMS, read_platforms, read_profile, validate_platforms
     import importlib
     checks = []
-    ProfileStore(ROOT / "config/merchant.example.json").load()
-    checks.append({"check": "示例商品配置", "ok": True})
-    checks.append({"check": "自定义商品配置", "ok": (ROOT / "config/merchant.json").exists(), "required_for_live": True})
+    profile = read_profile(ROOT)
+    checks.append({"check": "客服模式", "ok": True, "reply_mode": profile["reply_mode"],
+                   "using_builtin_default": not (ROOT / "config/merchant.json").exists()})
     data = validate_platforms(read_platforms(ROOT))
     for key, cfg in data["platforms"].items():
         module, name = PLATFORMS[key].rsplit(".", 1)
@@ -27,7 +26,7 @@ def doctor():
             errors = adapter.check_config() if hasattr(adapter, "check_config") else []
             checks.append({"check": f"{key} 接入配置", "ok": not errors, "details": errors})
     print(json.dumps({"checks": checks, "note": "检查配置不代表真实平台已联调成功"}, ensure_ascii=False, indent=2))
-    return 0 if all(c["ok"] for c in checks if not c.get("required_for_live")) else 1
+    return 0 if all(c["ok"] for c in checks) else 1
 
 
 async def run(live):

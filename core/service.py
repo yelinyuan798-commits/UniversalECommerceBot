@@ -11,6 +11,7 @@ import weakref
 from typing import Any
 
 from core.profiles import validate_profile
+from core.default_skill import reply_default
 from core.store import StateStore
 
 
@@ -132,9 +133,9 @@ class ServiceEngine:
             for keyword in [product["name"], *product["keywords"]])]
         return matches[0] if len(matches) == 1 else None
 
-    def _handoff(self, event: dict, reason: str) -> tuple[str, str, str]:
+    def _handoff(self, event: dict, reason: str, *, reply: str | None = None) -> tuple[str, str, str]:
         self.store.set_handoff(event["conversation_key"], True, reason)
-        return "这个问题需要店主确认，已加入人工待处理列表。请稍等，具体结果以店主回复为准。", "handoff", reason
+        return reply or "这个问题需要店主确认，已加入人工待处理列表。请稍等，具体结果以店主回复为准。", "handoff", reason
 
     async def _respond(self, event: dict) -> tuple[str | None, str, str]:
         if event["direction"] != "inbound" or event["kind"] != "text" or not event["text"]:
@@ -142,6 +143,13 @@ class ServiceEngine:
         if self.store.is_paused(event["conversation_key"]):
             return None, "ignore", "human_takeover"
         text = event["text"]
+        if self.profile["reply_mode"] == "default":
+            # Default reception must never consult retained custom products,
+            # example prices, merchant free-text instructions, or a model.
+            decision = reply_default(text, handoff_keywords=self.profile["handoff_keywords"])
+            if decision.action == "handoff":
+                return self._handoff(event, decision.intent, reply=decision.reply)
+            return decision.reply, decision.action, decision.intent
         # Claims of payment, cancellations or refunds in chat are not order evidence.
         if _contains(text, [*self.profile["handoff_keywords"], "退款", "退货", "投诉", "人工", "已付款", "已支付", "付款了", "支付了", "取消订单", "修改地址"]):
             return self._handoff(event, "human_requested")

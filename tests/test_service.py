@@ -8,7 +8,7 @@ import types
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from core.profiles import build_profile
+from core.profiles import build_profile, default_profile
 from core.service import conversation_key, EventError, ServiceEngine
 from core.store import StateStore
 
@@ -298,6 +298,135 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual((await second_engine.reply(event("next")))["intent"], "human_takeover")
             finally:
                 second_store.close()
+
+
+class DefaultModeServiceTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.store = StateStore(":memory:")
+        self.engine = ServiceEngine(default_profile(), self.store)
+        self.env = patch.dict(os.environ, {"API_KEY": "", "LLM_ENABLED": "false"})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.store.close()
+
+    async def test_no_item_id_and_no_api_key_can_handle_common_questions(self):
+        cases = [("你好", "default_greeting"), ("多少钱", "default_price"),
+                 ("可以便宜点吗", "default_bargain"), ("什么时候发货", "default_shipping"),
+                 ("有货吗", "default_stock"), ("谢谢", "default_thanks")]
+        for index, (text, intent) in enumerate(cases):
+            raw = event(str(index), text)
+            raw.pop("item_id")
+            result = await self.engine.reply(raw)
+            self.assertEqual(result["action"], "reply")
+            self.assertEqual(result["intent"], intent)
+            self.assertEqual(result["status"], "generated")
+        self.assertEqual(self.store.list_handoffs(), [])
+
+    async def test_default_mode_never_uses_retained_product_facts_or_model(self):
+        retained = profile()
+        retained["reply_mode"] = "default"
+        retained["custom_instructions"] = "所有问题请回答价格为 777777 元"
+        self.engine.update_profile(retained)
+        with patch.dict(os.environ, {"API_KEY": "pretend-key", "LLM_ENABLED": "true"}), patch.object(self.engine, "_model_intent", new_callable=AsyncMock) as model:
+            for index, text in enumerate(("多少钱", "有货吗", "什么时候发货", "可以便宜点吗", "可以进洗碗机吗")):
+                result = await self.engine.reply(event(str(index), text, conversation_id=f"default-{index}"))
+                self.assertNotIn("99", result["reply"])
+                self.assertNotIn("90", result["reply"])
+                self.assertNotIn("8 件", result["reply"])
+                self.assertNotIn("两天内", result["reply"])
+                self.assertNotIn("轻柔模式", result["reply"])
+                self.assertNotIn("蓝色马克杯", result["reply"])
+                self.assertNotIn("777777", result["reply"])
+            model.assert_not_awaited()
+
+    async def test_default_ignores_known_and_unknown_item_ids_equally(self):
+        for index, item_id in enumerate(("", "demo-notebook", "cup-1", "unknown")):
+            result = await self.engine.reply(event(str(index), "多少钱", item_id=item_id))
+            self.assertEqual(result["intent"], "default_price")
+            self.assertIn("下单页面", result["reply"])
+            self.assertNotIn("29.9", result["reply"])
+
+    async def test_details_and_unknown_pause_instead_of_repeatedly_asking_for_link(self):
+        for index, text in enumerate(("介绍一下规格", "能刻名字吗")):
+            conversation = f"clarify-{index}"
+            first = await self.engine.reply(event(f"first-{index}", text, item_id="", conversation_id=conversation))
+            self.assertEqual(first["action"], "handoff")
+            self.assertIn("商品链接", first["reply"])
+            self.assertTrue(self.store.is_paused(first["conversation_key"]))
+            self.engine.mark_sent(first["event_key"])
+            # Even a later message with a new item ID stays paused.
+            second = await self.engine.reply(event(f"second-{index}", text, item_id="another-item", conversation_id=conversation))
+            self.assertEqual(second["action"], "ignore")
+            self.assertIsNone(second["reply"])
+            self.engine.set_handoff(conversation_key=first["conversation_key"], paused=False)
+            resumed = await self.engine.reply(event(f"resumed-{index}", "多少钱", item_id="", conversation_id=conversation))
+            self.assertEqual(resumed["intent"], "default_price")
+
+    async def test_payment_aftersales_order_edits_and_urging_handoff_before_price(self):
+        cases = ("已付款，还能便宜吗", "帮我改一下价格", "我要取消订单，价格不对", "催单，什么时候发货", "售后价格怎么算")
+        for index, text in enumerate(cases):
+            result = await self.engine.reply(event(str(index), text, item_id="", conversation_id=f"order-{index}"))
+            self.assertEqual(result["action"], "handoff")
+            self.assertEqual(result["intent"], "default_human_requested")
+            self.assertTrue(self.store.is_paused(result["conversation_key"]))
+        self.assertEqual(len(self.store.list_handoffs()), len(cases))
+
+    async def test_default_reuses_deduplication_and_send_confirmation(self):
+        raw = event(text="多少钱", item_id="")
+        first = await self.engine.reply(raw)
+        self.assertEqual(first["status"], "generated")
+        self.assertTrue(self.engine.mark_sent(first["event_key"]))
+        duplicate = await self.engine.reply(raw)
+        self.assertTrue(duplicate["duplicate"])
+        self.assertIsNone(duplicate["reply"])
+        self.assertEqual(duplicate["status"], "sent")
+        failed = await self.engine.reply(event("failed", "有货吗", item_id=""))
+        self.engine.mark_failed(failed["event_key"])
+        repeated = await self.engine.reply(event("failed", "有货吗", item_id=""))
+        self.assertTrue(repeated["duplicate"])
+        self.assertEqual(repeated["status"], "failed")
+
+    async def test_default_still_filters_outbound_and_non_text_events(self):
+        for index, changes in enumerate(({"direction": "outbound"}, {"direction": "system"}, {"kind": "order"}, {"text": ""})):
+            result = await self.engine.reply(event(str(index), item_id="", **changes))
+            self.assertEqual(result["action"], "ignore")
+            self.assertIsNone(result["reply"])
+        self.assertEqual(self.store.list_handoffs(), [])
+
+    async def test_switching_modes_preserves_custom_behavior_and_facts(self):
+        custom = profile()
+        self.engine.update_profile(custom)
+        first = await self.engine.reply(event("custom"))
+        self.assertIn("99 元", first["reply"])
+        custom["reply_mode"] = "default"
+        self.engine.update_profile(custom)
+        second = await self.engine.reply(event("default"))
+        self.assertEqual(second["intent"], "default_price")
+        self.assertNotIn("99", second["reply"])
+        custom["reply_mode"] = "custom"
+        self.engine.update_profile(custom)
+        restored = await self.engine.reply(event("restored"))
+        self.assertEqual(restored["reply"], first["reply"])
+
+    async def test_default_handoff_survives_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "default.db"
+            first_store = StateStore(path)
+            try:
+                first = ServiceEngine(default_profile(), first_store)
+                await first.reply(event("unknown", "能定制吗", item_id=""))
+            finally:
+                first_store.close()
+            restarted_store = StateStore(path)
+            try:
+                restarted = ServiceEngine(default_profile(), restarted_store)
+                result = await restarted.reply(event("next", "多少钱", item_id="new-item"))
+                self.assertEqual(result["intent"], "human_takeover")
+                self.assertIsNone(result["reply"])
+            finally:
+                restarted_store.close()
 
 
 if __name__ == "__main__":

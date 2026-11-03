@@ -86,6 +86,7 @@ class MerchantProfile:
     handoff_keywords: list[str] = field(default_factory=lambda: ["人工", "投诉", "退款", "退货", "维权"])
     custom_instructions: str = ""
     schema_version: int = 1
+    reply_mode: str = "custom"
 
 
 def _platform(value: Any) -> str:
@@ -105,6 +106,9 @@ def validate_profile(data: dict) -> dict:
         raise ProfileError("店铺配置必须是对象")
     if data.get("schema_version", 1) != 1:
         raise ProfileError("不支持的配置版本")
+    reply_mode = data.get("reply_mode", "custom")
+    if not isinstance(reply_mode, str) or reply_mode not in {"default", "custom"}:
+        raise ProfileError("reply_mode 必须为 default（默认客服）或 custom（商品定制）")
     products = data.get("products", [])
     if not isinstance(products, list) or len(products) > 500:
         raise ProfileError("商品必须是列表，最多 500 个")
@@ -151,10 +155,15 @@ def validate_profile(data: dict) -> dict:
             keywords=_string_list(product.get("keywords", []), "商品关键词"), faq=parsed_faqs))
     profile = MerchantProfile(
         merchant_name=_text(data.get("merchant_name", "我的店铺"), "店铺名称", 200, required=True),
-        tone=_text(data.get("tone", "友好、简洁"), "回复语气", 500), products=parsed,
+        tone=_text(data.get("tone", "友好、简洁"), "回复语气", 500), products=parsed, reply_mode=reply_mode,
         handoff_keywords=_string_list(data.get("handoff_keywords", ["人工", "投诉", "退款", "退货", "维权"]), "转人工关键词"),
         custom_instructions=_text(data.get("custom_instructions", ""), "自定义要求", 10000))
     return asdict(profile)
+
+
+def default_profile() -> dict:
+    """A fresh no-setup profile; never copy example or merchant product facts."""
+    return validate_profile({"merchant_name": "我的店铺", "reply_mode": "default", "products": []})
 
 
 _CONDITION_LABELS = {
@@ -180,7 +189,7 @@ def build_profile(data: dict) -> dict:
     """
     if not isinstance(data, dict):
         raise ProfileError("配置条件必须是对象")
-    result = {k: v for k, v in data.items() if k in {"merchant_name", "tone", "handoff_keywords", "custom_instructions", "schema_version"}}
+    result = {k: v for k, v in data.items() if k in {"merchant_name", "tone", "handoff_keywords", "custom_instructions", "schema_version", "reply_mode"}}
     conditions = _text(data.get("conditions", ""), "配置条件", 12000)
     condition_product: dict[str, Any] = {}
     leftover = []
