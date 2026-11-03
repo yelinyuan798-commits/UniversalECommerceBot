@@ -77,9 +77,12 @@ def create_app(root=ROOT):
     @app.get("/api/state")
     async def state():
         current_profile = profile()
+        ai_enabled = os.getenv("LLM_ENABLED", "true").strip().lower() not in {"false", "0", "no"}
+        ai_configured = ai_enabled and bool(os.getenv("API_KEY", "").strip())
+        # Configuration state only, not a claim that an external API is healthy.
+        ai_status = "disabled" if not ai_enabled else "enabled" if ai_configured else "unconfigured"
         return {**runtime.state(), "profile_saved": (root / "config/merchant.json").exists(),
-                "ai_configured": bool(os.getenv("API_KEY", "").strip())
-                    and os.getenv("LLM_ENABLED", "true").lower() not in {"false", "0", "no"},
+                "ai_configured": ai_configured, "ai_status": ai_status,
                 "profile": current_profile,
                 "reply_mode": current_profile["reply_mode"], "default_skill": skill_metadata(),
                 "connections": read_platforms(root), "catalog": platform_metadata()}
