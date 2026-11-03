@@ -12,6 +12,7 @@ from typing import Any
 
 from core.profiles import validate_profile
 from core.default_skill import reply_default
+from core.default_ai import natural_reply
 from core.store import StateStore
 
 
@@ -62,9 +63,9 @@ def _amount(value: float | Decimal) -> str:
 class ServiceEngine:
     """Replies only to authenticated adapter events; no platform sending here.
 
-    The optional LLM selects a known intent or configured FAQ. Its free-form text
-    is never sent to buyers. Product claims and commercial terms are assembled
-    from validated merchant data, which also works without an API key.
+    Custom mode assembles product facts from validated merchant data. Default
+    reception can optionally use checked model wording without product facts;
+    its deterministic rules still decide handoff and provide an offline fallback.
     """
     def __init__(self, profile: dict, store: StateStore):
         self.profile = validate_profile(profile)
@@ -111,9 +112,12 @@ class ServiceEngine:
                 self.store.mark_failed(event["event_key"], "generation_failed")
                 raise
             stored = self.store.get_event(event["event_key"])
-            return {"reply": reply, "action": action, "intent": intent, "duplicate": False,
-                    "event_key": event["event_key"], "conversation_key": event["conversation_key"],
-                    "status": stored["status"]}
+            result = {"reply": reply, "action": action, "intent": intent, "duplicate": False,
+                      "event_key": event["event_key"], "conversation_key": event["conversation_key"],
+                      "status": stored["status"]}
+            if event.get("reply_source"):
+                result["reply_source"] = event["reply_source"]
+            return result
 
     def _product(self, event: dict) -> dict | None:
         # Platform item IDs aren't globally unique. A scoped record overrides
@@ -144,12 +148,16 @@ class ServiceEngine:
             return None, "ignore", "human_takeover"
         text = event["text"]
         if self.profile["reply_mode"] == "default":
-            # Default reception must never consult retained custom products,
-            # example prices, merchant free-text instructions, or a model.
+            # The model may vary ordinary wording, but never sees retained
+            # products, merchant free-text instructions, or custom chat history.
             decision = reply_default(text, handoff_keywords=self.profile["handoff_keywords"])
             if decision.action == "handoff":
                 return self._handoff(event, decision.intent, reply=decision.reply)
-            return decision.reply, decision.action, decision.intent
+            generated = await natural_reply(text, decision)
+            if self.store.is_paused(event["conversation_key"]):
+                return None, "ignore", "human_takeover"
+            event["reply_source"] = generated.source
+            return generated.text, decision.action, decision.intent
         # Claims of payment, cancellations or refunds in chat are not order evidence.
         if _contains(text, [*self.profile["handoff_keywords"], "退款", "退货", "投诉", "人工", "已付款", "已支付", "付款了", "支付了", "取消订单", "修改地址"]):
             return self._handoff(event, "human_requested")
@@ -234,7 +242,7 @@ class ServiceEngine:
 
     async def _model_intent(self, event: dict, product: dict) -> tuple[str, int | None]:
         api_key = os.getenv("API_KEY", "").strip()
-        if not api_key or os.getenv("LLM_ENABLED", "true").lower() in {"false", "0", "no"}:
+        if not api_key or os.getenv("LLM_ENABLED", "true").strip().lower() in {"false", "0", "no"}:
             return "unknown", None
         try:
             from openai import AsyncOpenAI

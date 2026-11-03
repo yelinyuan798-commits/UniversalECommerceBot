@@ -64,7 +64,21 @@ function renderState(data) {
   $('#status').textContent = data.running ? (data.mode === 'live' ? '自动回复中' : '观察中 · 不发送') : '本机工作台';
   $('#runtime-label').textContent = data.running ? (data.mode === 'live' ? '自动回复已启动' : '正在观察新消息') : '机器人未启动';
   $('#runtime-description').textContent = data.reply_mode === 'default' ? '默认客服已准备好。连接店铺后，先观察再开启回复。' : (data.profile.products.length ? '已保存商品规则。平台连接情况见“平台接入”。' : '先填写自己的商品资料，再试聊。');
-  $('#preview-note').textContent = data.reply_mode === 'default' ? '正在试用系统默认话术，不会发给真实买家。' : (data.ai_configured ? '按商品资料试聊，AI 可辅助识别问法。不会发给真实买家。' : '按商品资料试聊，不会发给真实买家。');
+  const aiStatus = data.ai_status || (data.ai_configured ? 'enabled' : 'unconfigured');
+  const aiMessages = {
+    enabled: 'AI 辅助已开启，配置已读取。连接情况以实际试聊为准；调用失败时使用内置话术。',
+    disabled: 'AI 已关闭，当前使用内置话术。开启后可以让回复更自然。',
+    unconfigured: '未配置 AI，当前使用内置话术，已经可以使用。接上 AI 后表达更自然。'
+  };
+  $('#default-description').textContent = data.default_skill?.description || '默认客服可直接用。接上 AI 后表达更自然，调用失败时继续使用内置话术。';
+  $('#default-ai-status').textContent = aiMessages[aiStatus] || aiMessages.unconfigured;
+  if (data.reply_mode === 'default') {
+    const preview = aiStatus === 'enabled' ? 'AI 辅助已开启，失败时回退内置话术。' : (aiStatus === 'disabled' ? 'AI 已关闭，正在试用内置话术。' : '未配置 AI，正在试用内置话术。');
+    $('#preview-note').textContent = preview + '试聊不会发给真实买家。';
+  } else {
+    const preview = aiStatus === 'enabled' ? 'AI 可辅助识别问法，回复仍按商品资料。' : (aiStatus === 'disabled' ? 'AI 已关闭，按商品资料和规则回复。' : '未配置 AI，按商品资料和规则回复。');
+    $('#preview-note').textContent = preview + '试聊不会发给真实买家。';
+  }
   $('#platform-list').replaceChildren();
   for (const [key, cfg] of Object.entries(data.connections.platforms)) {
     const row = document.createElement('div'); row.className = 'platform-row';
@@ -103,7 +117,13 @@ async function sendChat(text){
   try { r=await api('preview','POST',{text,session_id:requestSession,platform:selected[0]||$('#preview-platform').value,item_id:selected[1]}); }
   catch (error) { if (session !== requestSession) return; throw error; }
   if (session !== requestSession) return;
-  bubble(r.reply || '此会话已暂停自动回复，请重新开始会话继续测试。','assistant',r.action==='handoff'?'转人工，后续自动回复暂停':'本地试聊');
+  let label = '本地试聊';
+  if (r.action === 'handoff') label = '转人工，后续自动回复暂停';
+  else if (r.reply_mode === 'default' && r.reply) {
+    if (r.reply_source === 'ai') label = 'AI 回复 · 本地试聊';
+    else if (r.reply_source === 'builtin') label = '内置话术 · 本地试聊';
+  }
+  bubble(r.reply || '此会话已暂停自动回复，请重新开始会话继续测试。','assistant',label);
 }
 $('#chat-form').onsubmit=e=>{e.preventDefault();action(e.submitter,()=>sendChat($('#chat-input').value));};
 document.querySelectorAll('[data-prompt]').forEach(button=>button.onclick=()=>action(button,()=>sendChat(button.dataset.prompt)));

@@ -1,7 +1,8 @@
 """Built-in, deterministic reception for merchants with no product configuration.
 
 This is application logic, not an external Codex skill. It never reads a product
-page, invokes a model, quotes prices, or treats a buyer's text as order evidence.
+page, quotes prices, or treats a buyer's text as order evidence. Optional model
+wording lives in default_ai.py and cannot change these action decisions.
 """
 from __future__ import annotations
 
@@ -48,9 +49,9 @@ def skill_metadata() -> dict:
     return {
         "id": "builtin-default-customer-service-v1",
         "name": "默认客服",
-        "description": "不用先填商品资料，可接待问候、询价、发货和库存咨询；具体商品问题、订单和售后交给店主确认。",
+        "description": "不用先填商品资料即可接待常见咨询；可选 AI 让回复更自然，未配置或调用失败时使用内置话术。具体商品、订单和售后问题交给店主确认。",
         "capabilities": [
-            "回复问候和感谢",
+            "回复问候和感谢，可选 AI 根据买家问法自然表达",
             "价格、库存、发货和运费引导查看商品或订单页面",
             "没有店主授权时不自行报价或承诺折扣",
             "具体商品问题、付款、改订单和售后加入人工待办，并暂停该会话自动回复",
@@ -58,7 +59,8 @@ def skill_metadata() -> dict:
         "limitations": [
             "不会读取商品页面的实时价格或库存",
             "不会承诺发货时间、自动发货、核验付款或修改订单",
-            "不需要 AI 密钥；不使用已保存商品的价格和资料",
+            "不填 AI 密钥也能用；默认模式不使用已保存商品的价格和资料",
+            "AI 回复经过有限检查，不合格时回退内置话术；不能保证模型永远没有误解",
         ],
     }
 
