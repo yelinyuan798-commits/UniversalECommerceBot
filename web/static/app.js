@@ -5,6 +5,11 @@ let currentState;
 let platformLabels = {};
 let catalogVersion = '';
 let displayedReplyMode = null;
+let aiSettingsLoaded = false;
+let aiSettingsRecovery = false;
+let aiSettingsBusy = '';
+let aiFormVersion = 0;
+let aiTestRequest = 0;
 function renderCatalog(catalog) {
   const version = JSON.stringify(catalog);
   if (version === catalogVersion) return;
@@ -26,7 +31,12 @@ function notice(text, error = false) { $('#notice').textContent = text; $('#noti
 async function api(path, method = 'GET', body) {
   const res = await fetch('/api/' + path, {method, headers: {'Content-Type': 'application/json', 'X-Requested-With': 'merchant-console'}, ...(body === undefined ? {} : {body: JSON.stringify(body)})});
   const data = await res.json();
-  if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+  if (!res.ok) {
+    const error = new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+    error.safeMessage = typeof data.detail === 'string' ? data.detail : '';
+    error.status = res.status;
+    throw error;
+  }
   return data;
 }
 async function action(button, fn) { button.disabled = true; try { await fn(); } catch (e) { notice(e.message, true); } finally { button.disabled = false; if (currentState && button.classList.contains('mode-choice')) renderReplyMode(currentState); } }
@@ -106,6 +116,147 @@ for (const mode of ['default', 'custom']) $('#use-'+mode).onclick=e=>action(e.cu
   notice(mode === 'default' ? '已切换到默认客服，商品资料仍然保留。' : '已切换到按商品定制，请填写或检查商品资料。');
 });
 $('#default-connect').onclick=()=>document.querySelector('[data-tab="connections"]').click();
+$('#default-ai-settings').onclick=()=>document.querySelector('[data-tab="ai-settings"]').click();
+function aiFeedback(message, status = '') {
+  $('#ai-feedback').textContent = message;
+  $('#ai-feedback').dataset.status = status;
+}
+function updateAIControls() {
+  const clearing = $('#ai-clear-key').checked;
+  $('#ai-settings-fields').disabled = !aiSettingsLoaded || aiSettingsBusy === 'load' || aiSettingsBusy === 'save';
+  $('#ai-api-key').disabled = clearing;
+  $('#ai-enabled').disabled = clearing;
+  $('#ai-test').disabled = !aiSettingsLoaded || Boolean(aiSettingsBusy) || clearing;
+  $('#ai-save').disabled = !aiSettingsLoaded || Boolean(aiSettingsBusy);
+  $('#ai-test').textContent = aiSettingsBusy === 'test' ? '测试中…' : '测试连接';
+  $('#ai-save').textContent = aiSettingsBusy === 'save' ? '保存中…' : '保存设置';
+}
+function fillAISettings(data) {
+  aiSettingsRecovery = false;
+  $('#ai-enabled').checked = Boolean(data.enabled);
+  $('#ai-base-url').value = data.base_url || '';
+  $('#ai-model').value = data.model || '';
+  $('#ai-timeout').value = data.timeout_seconds;
+  $('#ai-api-key').value = '';
+  $('#ai-api-key').placeholder = data.has_api_key ? '已保存密钥；留空保持不变，填写可替换' : '粘贴服务商提供的密钥';
+  $('#ai-key-status').textContent = data.has_api_key ? '已保存密钥，不会回显。更换服务商地址时，请重新填写对应密钥。' : '尚未保存密钥。密钥只保存在本机，不会在页面回显。';
+  $('#ai-clear-key').checked = false;
+  $('#ai-clear-key-row').hidden = !data.has_api_key;
+  $('#ai-clear-key-label').textContent = '删除已保存的密钥，并关闭 AI';
+  $('#ai-saved-status').textContent = data.has_api_key
+    ? (data.enabled ? '已保存：AI 辅助已开启。是否能连接，请点“测试连接”。' : '已保存：AI 已关闭，密钥已保留。')
+    : '已保存：尚未填写密钥，当前使用内置话术。';
+  aiFormVersion += 1;
+}
+function recoverAISettings() {
+  aiSettingsLoaded = true;
+  aiSettingsRecovery = true;
+  $('#ai-enabled').checked = false;
+  $('#ai-base-url').value = '';
+  $('#ai-model').value = '';
+  $('#ai-timeout').value = 12;
+  $('#ai-api-key').value = '';
+  $('#ai-api-key').placeholder = '请重新填写密钥';
+  $('#ai-key-status').textContent = '原设置无法读取。请填写新密钥，或勾选下方“不保留原密钥，并关闭 AI”。';
+  $('#ai-clear-key').checked = false;
+  $('#ai-clear-key-row').hidden = false;
+  $('#ai-clear-key-label').textContent = '不保留原密钥，并关闭 AI';
+  $('#ai-saved-status').textContent = '原设置无法读取。请重新填写接口地址、模型和密钥后保存。';
+  aiFormVersion += 1;
+}
+async function loadAISettings() {
+  if (aiSettingsLoaded || aiSettingsBusy) return;
+  aiSettingsBusy = 'load';
+  $('#ai-load-retry').hidden = true;
+  updateAIControls();
+  try {
+    fillAISettings(await api('ai-settings'));
+    aiSettingsLoaded = true;
+    aiFeedback('填写后可以先测试，再保存。');
+  } catch (error) {
+    if (error.status === 400) {
+      recoverAISettings();
+      aiFeedback(error.safeMessage || '原设置有误，请在这里重新填写后保存。', 'error');
+    } else {
+      $('#ai-saved-status').textContent = '尚未读取到已保存的设置。';
+      aiFeedback(error.safeMessage || '暂时无法读取 AI 设置，请稍后重试。', 'error');
+      $('#ai-load-retry').hidden = false;
+    }
+  } finally {
+    aiSettingsBusy = '';
+    updateAIControls();
+  }
+}
+function aiPayload() {
+  return {
+    enabled: $('#ai-enabled').checked,
+    base_url: $('#ai-base-url').value.trim(),
+    model: $('#ai-model').value.trim(),
+    timeout_seconds: Number($('#ai-timeout').value),
+    api_key: $('#ai-api-key').value.trim(),
+    clear_api_key: $('#ai-clear-key').checked
+  };
+}
+function aiFormChanged(event) {
+  if (event.target === $('#ai-clear-key') && event.target.checked) {
+    $('#ai-api-key').value = '';
+    $('#ai-enabled').checked = false;
+  }
+  aiFormVersion += 1;
+  aiFeedback($('#ai-clear-key').checked ? '点“保存设置”后，将删除密钥并关闭 AI。' : '设置已修改，保存后才会生效。可以先测试连接。');
+  updateAIControls();
+}
+$('#ai-settings-form').addEventListener('input', aiFormChanged);
+$('#ai-settings-form').addEventListener('change', aiFormChanged);
+$('#ai-load-retry').onclick = loadAISettings;
+$('#ai-test').onclick = async () => {
+  if (aiSettingsBusy || !$('#ai-settings-form').reportValidity()) return;
+  if (aiSettingsRecovery && !$('#ai-api-key').value.trim()) {
+    aiFeedback('原设置无法读取，请先填写新的密钥再测试。', 'error');
+    return;
+  }
+  const version = aiFormVersion;
+  const request = ++aiTestRequest;
+  aiSettingsBusy = 'test';
+  aiFeedback('正在测试当前填写的设置…');
+  updateAIControls();
+  try {
+    const result = await api('ai-settings/test', 'POST', aiPayload());
+    if (version !== aiFormVersion || request !== aiTestRequest) return;
+    const timing = Number.isFinite(result.latency_ms) ? ` 用时 ${(result.latency_ms / 1000).toFixed(1)} 秒。` : '';
+    aiFeedback((result.message || (result.ok ? '连接测试通过。' : '连接测试未通过，请检查填写的信息。')) + (result.ok ? timing + ' 本次测试没有保存设置，也没有改变 AI 开关。' : ''), result.ok ? 'success' : 'error');
+  } catch (error) {
+    if (version !== aiFormVersion || request !== aiTestRequest) return;
+    aiFeedback(error.safeMessage || '暂时无法完成测试，请检查工作台是否仍在运行，再试一次。', 'error');
+  } finally {
+    aiSettingsBusy = '';
+    updateAIControls();
+  }
+};
+$('#ai-settings-form').onsubmit = async event => {
+  event.preventDefault();
+  if (aiSettingsBusy) return;
+  // Read the form before disabling its controls. Never retain the key in UI state.
+  const payload = aiPayload();
+  if (aiSettingsRecovery && !payload.api_key && !payload.clear_api_key) {
+    aiFeedback('请填写新的密钥，或勾选“不保留原密钥，并关闭 AI”后保存。', 'error');
+    return;
+  }
+  aiSettingsBusy = 'save';
+  aiFeedback('正在保存设置…');
+  updateAIControls();
+  try {
+    const saved = await api('ai-settings', 'PUT', payload);
+    fillAISettings(saved);
+    aiFeedback('设置已保存，接下来的回复会使用新设置，无需重启。', 'success');
+    api('state').then(renderState).catch(() => {});
+  } catch (error) {
+    aiFeedback(error.safeMessage || '暂时无法保存设置，请检查工作台是否仍在运行，再试一次。', 'error');
+  } finally {
+    aiSettingsBusy = '';
+    updateAIControls();
+  }
+};
 $('#save-json').onclick = e => action(e.target, async()=>{await api('profile','PUT',JSON.parse($('#profile-json').value)); await load(); newSession(); notice('完整商品配置已保存。');});
 $('#save-connections').onclick = e => action(e.target, async()=>{await api('connections','PUT',JSON.parse($('#connections-json').value)); await load(); notice('接入配置已保存。可以先开始观察。');});
 function bubble(text, kind, label='') { const node=document.createElement('div');node.className='bubble '+kind;node.textContent=text;if(label){const small=document.createElement('small');small.textContent=label;node.append(small);}$('#chat').append(node);$('#chat').scrollTop=$('#chat').scrollHeight; }
@@ -135,6 +286,6 @@ $('#stop').onclick=e=>action(e.target,async()=>{await api('stop','POST',{});rend
 const statuses={generated:'已生成，尚未确认发送',sent:'已发送',failed:'发送失败 / 结果待核实',ignored:'已忽略',handoff:'已转人工',processing:'处理中'};
 async function events(){const data=await api('events');$('#events').replaceChildren();for(const item of data.events){const row=document.createElement('tr');for(const value of [String(item.platform||'')+' / '+String(item.conversation_id||item.conversation_key||''),item.text||item.user_text||'',item.reply||'',statuses[item.status]||item.status||'']){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}$('#events').append(row);}if(!data.events.length){const row=document.createElement('tr');const cell=document.createElement('td');cell.colSpan=4;cell.textContent='暂无店铺消息。右侧的本地试聊使用独立记录。';row.append(cell);$('#events').append(row);}$('#handoffs').replaceChildren();for(const handoff of data.handoffs){const row=document.createElement('div');row.className='handoff';const label=document.createElement('span');label.textContent=`已接管：${handoff.platform} / ${handoff.conversation_id}`;const button=document.createElement('button');button.className='secondary';button.textContent='恢复自动回复';button.onclick=()=>action(button,async()=>{await api('handoff','POST',{...handoff,paused:false});await events();});row.append(label,button);$('#handoffs').append(row);}}
 $('#refresh-events').onclick=e=>action(e.target,events);
-document.querySelectorAll('.tab').forEach(button=>button.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===button));document.querySelectorAll('.tab-panel').forEach(x=>x.hidden=x.id!==button.dataset.tab);if(button.dataset.tab==='activity')events().catch(e=>notice(e.message,true));});
+document.querySelectorAll('.tab').forEach(button=>button.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===button));document.querySelectorAll('.tab-panel').forEach(x=>x.hidden=x.id!==button.dataset.tab);if(button.dataset.tab==='activity')events().catch(e=>notice(e.message,true));if(button.dataset.tab==='ai-settings')loadAISettings();});
 load().catch(e=>notice(e.message,true));
 setInterval(()=>api('state').then(renderState).catch(()=>{}),5000);
