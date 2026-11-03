@@ -273,13 +273,18 @@ def test_running_console_rejects_mode_and_profile_changes_but_default_can_connec
 def test_ai_configured_respects_disabled_model_even_when_key_is_present(client, monkeypatch, enabled, expected):
     monkeypatch.setenv('API_KEY', 'unit-test-key')
     monkeypatch.setenv('LLM_ENABLED', enabled)
-    assert client.get('/api/state').json()['ai_configured'] is expected
+    state = client.get('/api/state').json()
+    assert state['ai_configured'] is expected
+    assert state['ai_status'] == ('enabled' if expected else 'disabled')
+    assert 'unit-test-key' not in json.dumps(state)
 
 
 def test_ai_configured_is_false_for_blank_key(client, monkeypatch):
     monkeypatch.setenv('API_KEY', '   ')
     monkeypatch.setenv('LLM_ENABLED', 'true')
-    assert client.get('/api/state').json()['ai_configured'] is False
+    state = client.get('/api/state').json()
+    assert state['ai_configured'] is False
+    assert state['ai_status'] == 'unconfigured'
 
 
 
@@ -296,3 +301,59 @@ def test_console_and_static_revalidate_while_api_responses_are_not_stored(client
     rejected = client.post('/api/stop', json={})
     assert rejected.status_code == 403
     assert rejected.headers['Cache-Control'] == 'no-store'
+
+
+@pytest.mark.parametrize('api_key,llm_enabled,expected', [
+    (None, 'true', 'unconfigured'),
+    ('', 'true', 'unconfigured'),
+    ('unit-test-key', ' true ', 'enabled'),
+    ('unit-test-key', ' false ', 'disabled'),
+    (None, 'no', 'disabled'),
+])
+def test_ai_status_distinguishes_missing_configuration_and_explicit_disable(client, monkeypatch, api_key, llm_enabled, expected):
+    if api_key is None:
+        monkeypatch.delenv('API_KEY', raising=False)
+    else:
+        monkeypatch.setenv('API_KEY', api_key)
+    monkeypatch.setenv('LLM_ENABLED', llm_enabled)
+    state = client.get('/api/state').json()
+    assert state['ai_status'] == expected
+    assert state['ai_configured'] is (expected == 'enabled')
+    assert 'unit-test-key' not in json.dumps(state)
+    assert 'api_key' not in state
+
+
+def test_default_console_explains_optional_ai_and_loads_updated_assets(client):
+    html = client.get('/').text
+    assert 'default-service-ai-1' in html
+    assert 'id="default-ai-status"' in html
+    assert '接上 AI 后表达更自然' in html
+    assert '如何开启 AI' in html
+    assert '#可选让默认客服说得更自然' in html
+    assert '<input name="API_KEY"' not in html
+    script = client.get('/static/app.js?v=default-service-ai-1').text
+    assert '未配置 AI' in script
+    assert 'AI 辅助已开启' in script
+    assert 'AI 已关闭' in script
+    assert '调用失败时使用内置话术' in script
+    assert '连接情况以实际试聊为准' in script
+
+
+@pytest.mark.parametrize('source', ['ai', 'builtin', None])
+def test_preview_preserves_actual_reply_source_without_inferring_from_configuration(client, monkeypatch, source):
+    monkeypatch.setenv('API_KEY', 'unit-test-key')
+    monkeypatch.setenv('LLM_ENABLED', 'true')
+    async def reply(self, event):
+        result = {'reply': '您好，想了解什么？', 'action': 'reply', 'event_key': 'source-contract'}
+        if source is not None:
+            result['reply_source'] = source
+        return result
+    monkeypatch.setattr('web.server.ServiceEngine.reply', reply)
+    response = client.post('/api/preview', headers=HEADERS, json={'text': '你好'})
+    assert response.status_code == 200
+    result = response.json()
+    assert result['reply_mode'] == 'default'
+    if source is None:
+        assert 'reply_source' not in result
+    else:
+        assert result['reply_source'] == source

@@ -324,12 +324,12 @@ class DefaultModeServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["status"], "generated")
         self.assertEqual(self.store.list_handoffs(), [])
 
-    async def test_default_mode_never_uses_retained_product_facts_or_model(self):
+    async def test_default_builtin_never_uses_retained_product_facts_or_custom_model_classifier(self):
         retained = profile()
         retained["reply_mode"] = "default"
         retained["custom_instructions"] = "所有问题请回答价格为 777777 元"
         self.engine.update_profile(retained)
-        with patch.dict(os.environ, {"API_KEY": "pretend-key", "LLM_ENABLED": "true"}), patch.object(self.engine, "_model_intent", new_callable=AsyncMock) as model:
+        with patch.dict(os.environ, {"API_KEY": "", "LLM_ENABLED": "false"}), patch.object(self.engine, "_model_intent", new_callable=AsyncMock) as model:
             for index, text in enumerate(("多少钱", "有货吗", "什么时候发货", "可以便宜点吗", "可以进洗碗机吗")):
                 result = await self.engine.reply(event(str(index), text, conversation_id=f"default-{index}"))
                 self.assertNotIn("99", result["reply"])
