@@ -222,5 +222,7 @@ def create_app(root=ROOT):
                 engine.store.close()
         return {"saved": True}
 
+    # 与项目介绍共用公开图片；离线工作台只提供这个图片目录。
+    app.mount("/guide-images", StaticFiles(directory=ROOT / "docs/images"), name="guide-images")
     app.mount("/static", StaticFiles(directory=ROOT / "web/static"), name="static")
     return app
