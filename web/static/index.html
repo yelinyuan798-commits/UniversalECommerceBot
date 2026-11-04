@@ -1,7 +1,24 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>商家客服工作台</title><link rel="stylesheet" href="/static/style.css?v=ai-settings-1"><script defer src="/static/app.js?v=ai-settings-1"></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>商家客服工作台</title><link rel="stylesheet" href="/static/style.css?v=workbench-guide-1"><script defer src="/static/app.js?v=ai-settings-1"></script></head>
 <body><header><a class="brand" href="/">店小助 <span>商家客服工作台</span></a><div id="status" class="status">正在读取状态</div></header>
-<main><div class="intro"><div><p class="eyebrow">UNIVERSAL ECOMMERCE BOT</p><h1>不用从零写话术，<br>先用默认客服。</h1><p>默认客服打开就能用，接上 AI 后表达更自然。商品介绍、报价和还价，可以按商品定制。</p></div><div class="runtime"><strong id="runtime-label">机器人未启动</strong><p id="runtime-description">本地试聊可直接使用，无需登录商家账号。</p><div class="actions"><button id="observe" class="secondary">开始观察</button><button id="live">开启自动回复</button><button id="stop" class="secondary">停止</button></div></div></div>
+<main><div class="intro intro-compact"><h1>不用从零写话术，先用默认客服。</h1><p>默认客服打开就能试聊，接上 AI 后表达更自然；商品介绍、报价和还价，可以按商品定制。</p></div>
+<section class="merchant-guide" aria-labelledby="merchant-guide-heading">
+<div class="guide-heading"><h2 id="merchant-guide-heading">先看看能做什么</h2><a class="guide-skip" href="#workbench-controls">直接去操作区 →</a></div>
+<details class="guide-details" open>
+<summary><span>功能与上手步骤</span><span class="guide-collapse">收起介绍</span><span class="guide-expand">展开介绍</span></summary>
+<div class="guide-grid">
+<figure class="guide-card">
+<a class="guide-image" href="/guide-images/merchant-benefits.png" target="_blank" rel="noopener noreferrer" aria-label="查看店小助功能介绍原图（新页面）"><img src="/guide-images/merchant-benefits.png" width="1536" height="1024" alt="店小助功能介绍：默认客服直接试聊，可选 AI，按商品定制，复杂问题转人工" decoding="async"><span>点击查看原图 ↗</span></a>
+<figcaption><h3>重复的问题，交给客服助手</h3><ul class="guide-benefits"><li>默认客服，直接试聊</li><li>AI 可选，表达更自然</li><li>每件商品，单独设置</li><li>复杂问题，转人工</li></ul></figcaption>
+</figure>
+<figure class="guide-card">
+<a class="guide-image" href="/guide-images/merchant-quickstart.png" target="_blank" rel="noopener noreferrer" aria-label="查看店小助使用步骤原图（新页面）"><img src="/guide-images/merchant-quickstart.png" width="1536" height="1024" alt="店小助使用步骤：选择回复方式、本地试聊、登录配置店铺、先观察再开启自动回复" decoding="async"><span>点击查看原图 ↗</span></a>
+<figcaption><h3>先试聊，合适了再接店铺</h3><ol class="guide-steps"><li>选默认客服，或按商品定制。</li><li>在本地试聊，看看怎么回复。</li><li>登录平台，按接入说明配置店铺。</li><li>先观察核对，停止后按接入说明开启自动回复。</li></ol></figcaption>
+</figure>
+</div>
+</details>
+</section>
+<section id="workbench-controls" class="runtime workbench-start" tabindex="-1" aria-labelledby="runtime-label"><div><strong id="runtime-label">机器人未启动</strong><p id="runtime-description">本地试聊可直接使用，无需登录商家账号。</p></div><div class="actions"><button id="observe" class="secondary">开始观察</button><button id="live">开启自动回复</button><button id="stop" class="secondary">停止</button></div></section>
 <div id="notice" role="status" aria-live="polite"></div>
 <nav aria-label="工作台导航"><button class="tab active" data-tab="products">商品与规则</button><button class="tab" data-tab="connections">平台接入</button><button class="tab" data-tab="ai-settings">AI 设置</button><button class="tab" data-tab="activity">消息与人工接管</button></nav>
 <section id="products" class="tab-panel"><div class="workspace"><article>
