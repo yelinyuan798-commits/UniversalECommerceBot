@@ -20,6 +20,8 @@ from core.store import StateStore
 from core.platform_catalog import platform_metadata
 from core.default_skill import skill_metadata
 from core.ai_settings import AiSettingsStore, AISettingsError, test_connection
+from core.fulfillment_runtime import FulfillmentRuntime
+from web.fulfillment_api import fulfillment_router
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,6 +34,7 @@ def create_app(root=ROOT):
     ai_test_lock = asyncio.Lock()
     profile_store = ProfileStore(root / "config/merchant.json")
     preview_store = StateStore(root / "data/preview.db")
+    fulfillment = FulfillmentRuntime(root)
 
     def profile():
         return read_profile(root)
@@ -41,6 +44,7 @@ def create_app(root=ROOT):
         try:
             yield
         finally:
+            await fulfillment.close()
             await runtime.stop()
             if runtime.engine:
                 runtime.engine.store.close()
@@ -48,6 +52,8 @@ def create_app(root=ROOT):
 
     app = FastAPI(title="商家客服工作台", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.runtime = runtime
+    app.state.fulfillment = fulfillment
+    app.include_router(fulfillment_router(fulfillment))
 
     @app.middleware("http")
     async def local_access(request: Request, call_next):
@@ -83,6 +89,8 @@ def create_app(root=ROOT):
         # settings body may contain a credential, even when its shape is wrong.
         if request.url.path.startswith("/api/ai-settings"):
             return JSONResponse({"detail": "AI 配置格式无效，请检查填写内容后重试"}, 400)
+        if request.url.path.startswith("/api/fulfillment"):
+            return JSONResponse({"detail": "发货配置格式无效，请检查填写内容后重试"}, 400)
         return await request_validation_exception_handler(request, exc)
 
     @app.get("/")

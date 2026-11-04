@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>商家客服工作台</title><link rel="stylesheet" href="/static/style.css?v=workbench-guide-1"><script defer src="/static/app.js?v=ai-settings-1"></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>商家客服工作台</title><link rel="stylesheet" href="/static/style.css?v=fulfillment-1"><script defer src="/static/app.js?v=fulfillment-1"></script></head>
 <body><header><a class="brand" href="/">店小助 <span>商家客服工作台</span></a><div id="status" class="status">正在读取状态</div></header>
 <main><div class="intro intro-compact"><h1>不用从零写话术，先用默认客服。</h1><p>默认客服打开就能试聊，接上 AI 后表达更自然；商品介绍、报价和还价，可以按商品定制。</p></div>
 <section class="merchant-guide" aria-labelledby="merchant-guide-heading">
@@ -20,7 +20,7 @@
 </section>
 <section id="workbench-controls" class="runtime workbench-start" tabindex="-1" aria-labelledby="runtime-label"><div><strong id="runtime-label">机器人未启动</strong><p id="runtime-description">本地试聊可直接使用，无需登录商家账号。</p></div><div class="actions"><button id="observe" class="secondary">开始观察</button><button id="live">开启自动回复</button><button id="stop" class="secondary">停止</button></div></section>
 <div id="notice" role="status" aria-live="polite"></div>
-<nav aria-label="工作台导航"><button class="tab active" data-tab="products">商品与规则</button><button class="tab" data-tab="connections">平台接入</button><button class="tab" data-tab="ai-settings">AI 设置</button><button class="tab" data-tab="activity">消息与人工接管</button></nav>
+<nav aria-label="工作台导航"><button class="tab active" data-tab="products">商品与规则</button><button class="tab" data-tab="connections">平台接入</button><button class="tab" data-tab="ai-settings">AI 设置</button><button class="tab" data-tab="fulfillment">订单与发货</button><button class="tab" data-tab="activity">消息与人工接管</button></nav>
 <section id="products" class="tab-panel"><div class="workspace"><article>
 <div class="section-heading"><h2>选一种用法</h2><p>先用默认客服接待，也可以按商品定制。</p></div>
 <div class="reply-modes" role="group" aria-label="客服回复方式">
@@ -61,5 +61,46 @@
 <div class="ai-settings-notes"><p>保存后，后续请求使用新设置，无需重启。填错或服务暂时不可用，都可以关闭 AI，继续用内置话术。</p><p>开启后，相关买家消息会发给你选择的模型服务。退款、投诉等需要人工处理的消息，仍按转人工规则处理。</p><a class="text-button" href="https://github.com/yelinyuan798-commits/UniversalECommerceBot/blob/main/docs/PLATFORM_SETUP.md#可选让默认客服说得更自然" target="_blank" rel="noopener noreferrer">查看设置说明</a></div>
 </article>
 </section>
+<section id="fulfillment" class="tab-panel" hidden aria-labelledby="fulfillment-heading">
+<div class="section-heading fulfillment-heading"><div><h2 id="fulfillment-heading">订单与发货</h2><p>卡密、资料链接可按已付款订单交付。实物先登记物流，再核验回填。</p></div><button id="fulfillment-refresh" class="secondary">刷新订单与设置</button></div>
+<p class="mode-note">订单授权和聊天登录是两回事。这里需要接入你已授权的订单服务；平台名称表示可配置范围，不代表已获得平台发货权限。</p>
+<p id="fulfillment-feedback" class="fulfillment-feedback" role="status" aria-live="polite">正在读取订单设置。</p>
+<div class="fulfillment-setup">
+<article class="fulfillment-card"><div class="section-heading"><h3><span class="step-number">1</span>接入订单</h3><p>填入已授权订单服务的地址与密钥，保存后测试连接。</p></div>
+<div id="fulfillment-platforms" class="fulfillment-platforms" aria-label="可配置的订单平台"></div>
+<div id="fulfillment-sources" class="fulfillment-list"></div>
+<details id="fulfillment-source-details" open><summary id="fulfillment-source-summary">添加订单来源</summary>
+<form id="fulfillment-source-form" autocomplete="off"><fieldset id="fulfillment-source-fields"><input id="fulfillment-source-id" type="hidden">
+<div class="fields"><label>来源名称<input name="name" required maxlength="100" placeholder="例如：我的商城"></label><label>所属平台<select name="platform" id="fulfillment-source-platform" required></select></label></div>
+<label>店铺标识<input name="shop_id" required maxlength="200" placeholder="与订单服务中的店铺标识一致"></label>
+<label>订单服务地址<input name="base_url" type="url" required spellcheck="false" placeholder="https://你的订单服务地址"><small class="field-help">由已授权的订单服务提供，不是商品链接或聊天页面地址。</small></label>
+<label>订单服务密钥<input name="secret" type="password" autocomplete="new-password" spellcheck="false" placeholder="首次接入请填写密钥"><small id="fulfillment-source-secret-note" class="field-help">只保存在本机。保存后不回显。</small></label>
+<label class="check-row"><input name="enabled" type="checkbox"><span>启用这个订单来源</span></label>
+<label class="check-row"><input name="auto_process" type="checkbox"><span>允许这个来源自动处理订单<small>还需在第 3 步开启。卡密、资料可自动交付；实物仍需单独登记并核验回填物流。</small></span></label>
+<div class="actions"><button type="submit">保存订单来源</button><button id="fulfillment-source-new" type="button" class="secondary">填写新来源</button></div>
+</fieldset></form></details></article>
+<article class="fulfillment-card"><div class="section-heading"><h3><span class="step-number">2</span>设置商品与库存</h3><p>按平台、店铺、商品和规格匹配，先把交付内容准备好。</p></div>
+<div id="fulfillment-rules" class="fulfillment-list"></div>
+<details id="fulfillment-rule-details" open><summary id="fulfillment-rule-summary">添加发货规则</summary>
+<form id="fulfillment-rule-form" autocomplete="off"><fieldset id="fulfillment-rule-fields"><input id="fulfillment-rule-id" type="hidden">
+<div class="fields"><label>所属平台<select name="platform" id="fulfillment-rule-platform" required></select></label><label>店铺标识<input name="shop_id" required maxlength="200"></label><label>商品 ID<input name="item_id" required maxlength="200"></label><label>规格 ID（没有可留空）<input name="sku_id" maxlength="200"></label><label>交付方式<select name="type" id="fulfillment-rule-type"><option value="card">卡密</option><option value="link">资料链接</option><option value="physical">实物物流</option></select></label><label>最低实付单价<input name="min_unit_amount" type="number" min="0" step="0.01" value="0.00" required></label><label>币种<input name="currency" value="CNY" maxlength="3" pattern="[A-Z]{3}" required><small class="field-help">人民币填 CNY。低于最低实付单价的订单会被阻止。</small></label></div>
+<label id="fulfillment-link-field" hidden>发送给买家的资料链接与说明<textarea name="delivery_content" id="fulfillment-link-content" rows="3" maxlength="20000" spellcheck="false" placeholder="资料链接、提取码和使用说明"></textarea><small id="fulfillment-link-note" class="field-help">保存后清空输入，不回显正文。</small></label>
+<p id="fulfillment-type-note" class="field-help">卡密规则保存后，在下方导入库存，每行一条。</p>
+<label class="check-row"><input name="enabled" type="checkbox" checked><span>启用这件商品的发货规则</span></label>
+<div class="actions"><button type="submit">保存发货规则</button><button id="fulfillment-rule-new" type="button" class="secondary">填写新规则</button></div>
+</fieldset></form></details>
+<details id="fulfillment-cards-details"><summary>导入卡密库存</summary><form id="fulfillment-cards-form" autocomplete="off"><fieldset id="fulfillment-cards-fields"><label>选择卡密商品<select id="fulfillment-card-rule" required></select></label><label>卡密（每行一条）<textarea id="fulfillment-cards" rows="4" required spellcheck="false" placeholder="一行是一份完整的交付内容"></textarea></label><p class="field-help">导入后只显示库存数量，输入会清空。不要把买家密码填在这里。</p><button type="submit">导入库存</button></fieldset></form></details>
+</article></div>
+<article class="fulfillment-card fulfillment-operations"><div class="section-heading"><h3><span class="step-number">3</span>核对后再开启</h3><p>先试运行：只核对订单和规则，不扣库存、不发送、不回填物流。</p></div>
+<div class="fulfillment-runtime"><div><strong id="fulfillment-runtime-label">自动发货未开启</strong><p id="fulfillment-runtime-detail">先保存订单来源和商品规则。</p></div><div class="actions"><button id="fulfillment-start">开启自动发货</button><button id="fulfillment-stop" class="secondary">停止自动发货</button></div></div>
+<p id="fulfillment-running-note" class="field-help" hidden>自动发货运行中。修改来源、商品规则或库存前，请先停止自动发货。</p>
+<label>本次核对的订单来源<select id="fulfillment-sync-source"></select></label><div class="actions"><button id="fulfillment-dry-sync" class="secondary">试运行一次</button><button id="fulfillment-live-sync">实际处理一次</button></div>
+<details><summary>核对指定订单</summary><form id="fulfillment-order-form"><label>订单号<input id="fulfillment-order-id" required maxlength="200" placeholder="从所选来源复制订单号"></label><div class="actions"><button id="fulfillment-order-dry" type="submit" class="secondary">试运行该订单</button><button id="fulfillment-order-live" type="button">实际处理该订单</button></div></form></details>
+<div id="fulfillment-run-results" class="fulfillment-results" aria-live="polite"></div>
+<div class="fulfillment-orders-heading"><h3>订单处理记录</h3><p>“待核实”表示发送结果不明确，请到原订单核对，不要重复发货。</p></div>
+<div class="fulfillment-pagination"><label>查看状态<select id="fulfillment-job-filter"><option value="all">全部</option><option value="pending">待发货</option><option value="unknown">待核实</option><option value="sent">已交付</option><option value="blocked">已阻止</option></select></label><div class="fulfillment-page-controls"><span id="fulfillment-page-info" role="status">正在读取订单记录。</span><div class="actions"><button id="fulfillment-prev-page" class="secondary">上一页</button><button id="fulfillment-next-page" class="secondary">下一页</button></div></div></div>
+<div class="table-wrap"><table class="fulfillment-table"><thead><tr><th>订单 / 商品</th><th>交付 / 金额</th><th>状态</th><th>下一步</th></tr></thead><tbody id="fulfillment-jobs"></tbody></table></div>
+<section id="fulfillment-tracking-editor" class="fulfillment-tracking" hidden aria-labelledby="fulfillment-tracking-heading"><h3 id="fulfillment-tracking-heading">登记物流信息</h3><p id="fulfillment-tracking-order"></p><form id="fulfillment-tracking-form"><input id="fulfillment-tracking-job" type="hidden"><div class="fields"><label>承运商<input id="fulfillment-carrier" required maxlength="100" placeholder="例如：顺丰速运"></label><label>物流单号<input id="fulfillment-tracking-number" required maxlength="200" spellcheck="false"></label></div><p class="field-help">这里仅登记单号。保存后，再点订单旁的“核验并回填”。</p><div class="actions"><button type="submit">保存物流信息</button><button id="fulfillment-tracking-cancel" type="button" class="secondary">取消</button></div></form></section>
+</article></section>
 <section id="activity" class="tab-panel" hidden><div class="section-heading"><h2>消息与接管</h2><p>生成回复和发送成功分别记录。接管后，该会话暂停自动回答。</p><button id="refresh-events" class="secondary">刷新记录</button></div><div id="handoffs"></div><div class="table-wrap"><table><thead><tr><th>平台 / 会话</th><th>买家消息</th><th>回复</th><th>状态</th></tr></thead><tbody id="events"></tbody></table></div></section>
 <footer>未配置 AI 也能使用 · 接入 AI 后，相关买家消息会发给你选择的模型服务</footer></main></body></html>
