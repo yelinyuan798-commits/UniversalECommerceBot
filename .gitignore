@@ -17,6 +17,8 @@ artifacts/
 config/merchant.json
 config/platforms.local.json
 config/ai.local.json
+config/fulfillment.local.json
+config/.fulfillment-*
 config/.ai-settings-*
 config/*.private.json
 *.har
