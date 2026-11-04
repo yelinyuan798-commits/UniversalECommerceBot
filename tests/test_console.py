@@ -325,7 +325,7 @@ def test_ai_status_distinguishes_missing_configuration_and_explicit_disable(clie
 
 def test_default_console_explains_optional_ai_and_loads_updated_assets(client):
     html = client.get('/').text
-    assert 'ai-settings-1' in html
+    assert '/static/app.js?v=' in html
     assert 'id="default-ai-status"' in html
     assert '接上 AI 后表达更自然' in html
     assert '打开 AI 设置' in html
